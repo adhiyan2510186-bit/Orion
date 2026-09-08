@@ -16,6 +16,19 @@ oceanographic float data. Python/FastAPI backend, Next.js/deck.gl frontend, mono
 
 If a request conflicts with `IMPLEMENTATION_PLAN.md`, say so and ask — do not quietly redesign.
 
+## Project skills
+
+Repeatable workflows live in `.claude/skills/`. Invoke the matching one instead of improvising —
+each encodes the extension-point recipe plus the gate that must pass.
+
+| Skill | Use for |
+|---|---|
+| `/sync-contracts` | Any change to a wire type. Edits the JSON Schema, regenerates both languages, records the change. |
+| `/add-provider` | New or swapped data source (NetCDF, Parquet, GDAC, PostGIS, vector DB). EP-1. |
+| `/add-parser` | New or swapped NL query parser (rule, LLM tool-calling, hybrid, local). EP-2. |
+| `/add-layer` | New deck.gl layer, GLSL shader, or colormap. EP-3. |
+| `/ship` | Verify gates, security-sweep the diff, commit, push. |
+
 ## Non-negotiable architecture rules
 
 These exist so future teammates can swap subsystems without refactoring. Violating them defeats
