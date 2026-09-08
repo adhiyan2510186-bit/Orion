@@ -1,0 +1,14 @@
+# Normalise everything to LF in the repo and in the working tree.
+#
+# This is load-bearing, not cosmetic: the code generators write LF, and the
+# `contracts-check` gate compares regenerated output against the checked-out file.
+# If git rewrote those files to CRLF on checkout, every run would report a spurious
+# diff and the gate would be permanently red.
+* text=auto eol=lf
+
+# Binary fixtures - never touch these.
+*.nc     binary
+*.parquet binary
+*.png    binary
+*.jpg    binary
+*.woff2  binary

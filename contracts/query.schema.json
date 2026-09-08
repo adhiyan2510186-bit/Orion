@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://floatchat.dev/contracts/query.schema.json",
+  "title": "FloatChat query envelope",
+  "description": "Request/response envelope and the QuerySpec intermediate representation. $defs here share one namespace with argo.schema.json - see contracts/README.md.",
+  "x-schema-version": "1.0.0",
+  "$defs": {
+    "FilterOp": {
+      "type": "string",
+      "description": "Comparison operator for a VariableFilter.",
+      "enum": ["gt", "gte", "lt", "lte", "eq", "between"]
+    },
+    "Aggregation": {
+      "type": "string",
+      "description": "How matched points should be collapsed before returning.",
+      "enum": ["none", "by_float", "by_time_bucket", "by_depth_bin"]
+    },
+    "ProviderCapability": {
+      "type": "string",
+      "description": "What a DataProvider can do natively. The QueryEngine reads these and applies in-process whatever the provider cannot. UNDER-claiming costs performance; OVER-claiming silently returns wrong results.",
+      "enum": ["server_side_filtering", "aggregation", "vector_search", "streaming", "live_updates"]
+    },
+    "DepthRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_m", "max_m"],
+      "properties": {
+        "min_m": { "type": "number", "minimum": 0 },
+        "max_m": { "type": "number", "minimum": 0 }
+      }
+    },
+    "VariableFilter": {
+      "type": "object",
+      "description": "A threshold condition on one variable. value2 is required only for the between operator.",
+      "additionalProperties": false,
+      "required": ["variable", "op", "value", "value2"],
+      "properties": {
+        "variable": {
+          "type": "string",
+          "description": "A VariableDescriptor key, e.g. temperature_c."
+        },
+        "op": { "$ref": "#/$defs/FilterOp" },
+        "value": { "type": "number" },
+        "value2": { "type": ["number", "null"] }
+      }
+    },
+    "QuerySpec": {
+      "type": "object",
+      "description": "The structured intermediate representation, and the true contract boundary between the NLP layer and the data layer. Every parser EMITS this; every engine CONSUMES it. Deliberately declarative and engine-agnostic - it describes intent without implying pandas, SQL or any other execution strategy.",
+      "additionalProperties": false,
+      "required": ["bbox", "depth_range_m", "time_range", "variable_filters", "wmo_ids", "anomaly_codes", "aggregation", "limit"],
+      "properties": {
+        "bbox": {
+          "description": "null means unconstrained. May wrap the antimeridian.",
+          "oneOf": [{ "$ref": "#/$defs/GeoBBox" }, { "type": "null" }]
+        },
+        "depth_range_m": {
+          "oneOf": [{ "$ref": "#/$defs/DepthRange" }, { "type": "null" }]
+        },
+        "time_range": {
+          "oneOf": [{ "$ref": "#/$defs/TimeRange" }, { "type": "null" }]
+        },
+        "variable_filters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/VariableFilter" }
+        },
+        "wmo_ids": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "anomaly_codes": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "aggregation": { "$ref": "#/$defs/Aggregation" },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 500000 }
+      }
+    },
+    "QueryOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "include_profiles", "include_trajectories", "parser"],
+      "properties": {
+        "limit": { "type": ["integer", "null"], "minimum": 1, "maximum": 500000 },
+        "include_profiles": { "type": "boolean" },
+        "include_trajectories": { "type": "boolean" },
+        "parser": {
+          "type": ["string", "null"],
+          "description": "Forces a specific parser implementation. Enables A/B evaluation of a new parser against the baseline on live traffic."
+        }
+      }
+    },
+    "QueryRequest": {
+      "type": "object",
+      "description": "additionalProperties is false so a typo in a client field is caught loudly rather than ignored.",
+      "additionalProperties": false,
+      "required": ["query"],
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "The plain-English question typed by the user."
+        },
+        "filters": {
+          "description": "Optional pre-built spec. When present the parser is bypassed entirely.",
+          "oneOf": [{ "$ref": "#/$defs/QuerySpec" }, { "type": "null" }]
+        },
+        "options": {
+          "oneOf": [{ "$ref": "#/$defs/QueryOptions" }, { "type": "null" }]
+        }
+      }
+    },
+    "ParseResult": {
+      "type": "object",
+      "description": "What a parser returns. unresolved is first-class: a parser that silently drops half the query and reports high confidence is worse than one that admits the gap.",
+      "additionalProperties": false,
+      "required": ["spec", "confidence", "rationale", "unresolved", "parser_id"],
+      "properties": {
+        "spec": { "$ref": "#/$defs/QuerySpec" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rationale": {
+          "type": "string",
+          "description": "Human-readable account of how the sentence was interpreted."
+        },
+        "unresolved": {
+          "type": "array",
+          "description": "Phrases the parser could not map. Rendered as clarification chips.",
+          "items": { "type": "string" }
+        },
+        "parser_id": { "type": "string" }
+      }
+    },
+    "VariableStats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variable", "count", "min", "max", "mean"],
+      "properties": {
+        "variable": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "min": { "type": ["number", "null"] },
+        "max": { "type": ["number", "null"] },
+        "mean": { "type": ["number", "null"] }
+      }
+    },
+    "QuerySummary": {
+      "type": "object",
+      "description": "Everything needed to describe a result set without re-scanning the points.",
+      "additionalProperties": false,
+      "required": ["answer", "matched_points", "matched_floats", "matched_cycles", "time_range", "depth_range_m", "bbox", "variable_stats"],
+      "properties": {
+        "answer": {
+          "type": "string",
+          "description": "One or two sentences stating what was found, in plain language."
+        },
+        "matched_points": { "type": "integer", "minimum": 0 },
+        "matched_floats": { "type": "integer", "minimum": 0 },
+        "matched_cycles": { "type": "integer", "minimum": 0 },
+        "time_range": {
+          "oneOf": [{ "$ref": "#/$defs/TimeRange" }, { "type": "null" }]
+        },
+        "depth_range_m": {
+          "oneOf": [{ "$ref": "#/$defs/DepthRange" }, { "type": "null" }]
+        },
+        "bbox": {
+          "oneOf": [{ "$ref": "#/$defs/GeoBBox" }, { "type": "null" }]
+        },
+        "variable_stats": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/VariableStats" }
+        }
+      }
+    },
+    "ResponseMeta": {
+      "type": "object",
+      "description": "Surfacing provider and parser identity is what makes swapping either one OBSERVABLE in the UI and in logs rather than invisible.",
+      "additionalProperties": false,
+      "required": ["provider", "parser", "latency_ms", "total_matched", "truncated", "warnings", "schema_version"],
+      "properties": {
+        "provider": { "type": "string" },
+        "parser": { "type": "string" },
+        "latency_ms": { "type": "number", "minimum": 0 },
+        "total_matched": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total matches BEFORE the limit was applied."
+        },
+        "truncated": { "type": "boolean" },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "schema_version": { "type": "string" }
+      }
+    },
+    "QueryResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spec", "parse", "points", "trajectories", "profiles", "summary", "anomalies", "meta"],
+      "properties": {
+        "spec": { "$ref": "#/$defs/QuerySpec" },
+        "parse": { "$ref": "#/$defs/ParseResult" },
+        "points": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ArgoFloatPoint" }
+        },
+        "trajectories": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FloatTrajectory" }
+        },
+        "profiles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DepthProfile" }
+        },
+        "summary": { "$ref": "#/$defs/QuerySummary" },
+        "anomalies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnomalyTag" }
+        },
+        "meta": { "$ref": "#/$defs/ResponseMeta" }
+      }
+    },
+    "PointPage": {
+      "type": "object",
+      "description": "What DataProvider.query_points returns. total_matched and truncated must be reported HONESTLY - the engine trusts them.",
+      "additionalProperties": false,
+      "required": ["points", "total_matched", "truncated"],
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ArgoFloatPoint" }
+        },
+        "total_matched": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "ProviderMetadata": {
+      "type": "object",
+      "description": "Returned by DataProvider.describe(). Feeds both the dynamic UI controls and the parser ParseContext, so a parser cannot invent a variable the provider lacks.",
+      "additionalProperties": false,
+      "required": ["provider_id", "record_count", "float_count", "bbox", "time_range", "depth_range_m", "variables", "capabilities"],
+      "properties": {
+        "provider_id": { "type": "string" },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "float_count": { "type": "integer", "minimum": 0 },
+        "bbox": {
+          "oneOf": [{ "$ref": "#/$defs/GeoBBox" }, { "type": "null" }]
+        },
+        "time_range": {
+          "oneOf": [{ "$ref": "#/$defs/TimeRange" }, { "type": "null" }]
+        },
+        "depth_range_m": {
+          "oneOf": [{ "$ref": "#/$defs/DepthRange" }, { "type": "null" }]
+        },
+        "variables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/VariableDescriptor" }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProviderCapability" }
+        }
+      }
+    },
+    "HealthStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["healthy", "detail"],
+      "properties": {
+        "healthy": { "type": "boolean" },
+        "detail": { "type": "string" }
+      }
+    },
+    "MetaResponse": {
+      "type": "object",
+      "description": "GET /api/v1/meta. The frontend generates its variable controls, legends and axis bounds from this, which is why a new backend variable appears in the UI with no frontend change.",
+      "additionalProperties": false,
+      "required": ["provider", "parser", "schema_version", "health", "example_queries"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/ProviderMetadata" },
+        "parser": { "type": "string" },
+        "schema_version": { "type": "string" },
+        "health": { "$ref": "#/$defs/HealthStatus" },
+        "example_queries": {
+          "type": "array",
+          "description": "Seed queries known to return results against the loaded dataset.",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

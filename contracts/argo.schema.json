@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://floatchat.dev/contracts/argo.schema.json",
+  "title": "FloatChat ARGO domain entities",
+  "description": "Single source of truth for every ARGO domain type crossing the wire. frontend/types/argo.ts and backend/app/schemas/argo.py are GENERATED from this file - never hand-edit them. See contracts/README.md.",
+  "x-schema-version": "1.0.0",
+  "$defs": {
+    "QCFlag": {
+      "type": "string",
+      "description": "Normalized ARGO quality-control flag. Mirrors the GDAC 1-9 scale: 1 good, 2 probably good, 3 probably bad, 4 bad, 5 changed, 8 estimated, 9 missing.",
+      "enum": ["good", "probably_good", "probably_bad", "bad", "changed", "estimated", "missing", "unknown"]
+    },
+    "AnomalySeverity": {
+      "type": "string",
+      "description": "How loudly a detected anomaly should be surfaced.",
+      "enum": ["info", "warning", "critical"]
+    },
+    "DataMode": {
+      "type": "string",
+      "description": "ARGO processing mode. 'real_time' is uncalibrated; 'adjusted' and 'delayed' carry scientifically validated values and are preferred when present.",
+      "enum": ["real_time", "adjusted", "delayed", "unknown"]
+    },
+    "AnomalyTag": {
+      "type": "object",
+      "description": "A flagged condition on a measurement or profile. Always carries machine-readable evidence so the UI can explain WHY without knowing anything about the detector.",
+      "additionalProperties": false,
+      "required": ["code", "severity", "label", "detected_by", "evidence"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Stable machine identifier, e.g. SURFACE_HEATWAVE."
+        },
+        "severity": { "$ref": "#/$defs/AnomalySeverity" },
+        "label": {
+          "type": "string",
+          "description": "Short human-readable name for display."
+        },
+        "detected_by": {
+          "type": "string",
+          "description": "Registry id of the detector that produced this tag."
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Numeric facts supporting the flag, e.g. {\"observed\": 29.41, \"threshold\": 29.0}. Rendered generically by the UI.",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+    "ArgoFloatPoint": {
+      "type": "object",
+      "description": "The atomic 4D measurement: one variable set, at one depth, at one time, from one float. The type the entire system revolves around.",
+      "additionalProperties": false,
+      "required": [
+        "point_id", "wmo_id", "cycle_number", "latitude", "longitude",
+        "depth_m", "pressure_dbar", "timestamp", "temperature_c",
+        "salinity_psu", "qc_flag", "anomaly_tags", "extras"
+      ],
+      "properties": {
+        "point_id": {
+          "type": "string",
+          "description": "Stable synthetic id, formatted {wmo_id}:{cycle_number}:{level_index}."
+        },
+        "wmo_id": {
+          "type": "string",
+          "description": "WMO float identifier. A STRING, not an integer - leading zeros are significant."
+        },
+        "cycle_number": {
+          "type": "integer",
+          "description": "Profile cycle index. Sourced from a float64 in NetCDF; cast explicitly."
+        },
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180,
+          "description": "Normalized to [-180, 180] by the provider. Note that equatorial Pacific floats cross the antimeridian."
+        },
+        "depth_m": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Metres below surface, POSITIVE DOWNWARD. Derived from pressure in the provider."
+        },
+        "pressure_dbar": {
+          "type": ["number", "null"],
+          "description": "Original ARGO measurement in decibar, retained for scientific fidelity."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 UTC with a Z suffix. Always."
+        },
+        "temperature_c": {
+          "type": ["number", "null"],
+          "description": "Sea water temperature, degrees Celsius. null when missing - never -999 or NaN."
+        },
+        "salinity_psu": {
+          "type": ["number", "null"],
+          "description": "Practical salinity. null when missing."
+        },
+        "qc_flag": { "$ref": "#/$defs/QCFlag" },
+        "anomaly_tags": {
+          "type": "array",
+          "description": "Empty array when nothing is flagged. Never null.",
+          "items": { "$ref": "#/$defs/AnomalyTag" }
+        },
+        "extras": {
+          "type": "object",
+          "description": "EXTENSION SLOT. Biogeochemical and non-core variables (oxygen, chlorophyll, nitrate, pH) land here with NO schema change. The UI renders controls for them from the matching VariableDescriptor in /meta.",
+          "additionalProperties": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "ProfileLevel": {
+      "type": "object",
+      "description": "One depth bin within a single cast.",
+      "additionalProperties": false,
+      "required": ["depth_m", "pressure_dbar", "temperature_c", "salinity_psu", "qc_flag", "extras"],
+      "properties": {
+        "depth_m": { "type": "number", "minimum": 0 },
+        "pressure_dbar": { "type": ["number", "null"] },
+        "temperature_c": { "type": ["number", "null"] },
+        "salinity_psu": { "type": ["number", "null"] },
+        "qc_flag": { "$ref": "#/$defs/QCFlag" },
+        "extras": {
+          "type": "object",
+          "additionalProperties": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "ProfileDerived": {
+      "type": "object",
+      "description": "Diagnostics computed from a cast. Every field is nullable because a shallow or sparse cast may not support the calculation, and a fabricated value is worse than a null.",
+      "additionalProperties": false,
+      "required": ["thermocline_depth_m", "halocline_depth_m", "mixed_layer_depth_m", "max_temperature_gradient_c_per_m", "surface_temperature_c", "method"],
+      "properties": {
+        "thermocline_depth_m": {
+          "type": ["number", "null"],
+          "description": "Depth of maximum negative temperature gradient."
+        },
+        "halocline_depth_m": {
+          "type": ["number", "null"],
+          "description": "Depth of maximum salinity gradient."
+        },
+        "mixed_layer_depth_m": {
+          "type": ["number", "null"],
+          "description": "Depth at which temperature departs from the near-surface reference by a fixed threshold."
+        },
+        "max_temperature_gradient_c_per_m": { "type": ["number", "null"] },
+        "surface_temperature_c": {
+          "type": ["number", "null"],
+          "description": "Shallowest valid temperature in the cast."
+        },
+        "method": {
+          "type": "string",
+          "description": "Names the algorithm used, so a future change is visible in the data rather than silent."
+        }
+      }
+    },
+    "DepthProfile": {
+      "type": "object",
+      "description": "A single cast: measurements against depth for one float at one cycle.",
+      "additionalProperties": false,
+      "required": ["wmo_id", "cycle_number", "timestamp", "latitude", "longitude", "data_mode", "levels", "derived", "anomaly_tags"],
+      "properties": {
+        "wmo_id": { "type": "string" },
+        "cycle_number": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "data_mode": { "$ref": "#/$defs/DataMode" },
+        "levels": {
+          "type": "array",
+          "description": "Depth-ordered ASCENDING (shallowest first).",
+          "items": { "$ref": "#/$defs/ProfileLevel" }
+        },
+        "derived": { "$ref": "#/$defs/ProfileDerived" },
+        "anomaly_tags": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnomalyTag" }
+        }
+      }
+    },
+    "TrajectoryPoint": {
+      "type": "object",
+      "description": "One surface fix on a float's path. Deliberately lighter than ArgoFloatPoint - a trajectory carries thousands of these.",
+      "additionalProperties": false,
+      "required": ["cycle_number", "latitude", "longitude", "timestamp", "surface_temperature_c"],
+      "properties": {
+        "cycle_number": { "type": "integer" },
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "surface_temperature_c": { "type": ["number", "null"] }
+      }
+    },
+    "GeoBBox": {
+      "type": "object",
+      "description": "Geographic bounding box. When min_lon > max_lon the box WRAPS the antimeridian and must be evaluated as two OR-ed spans. This is a real case in the equatorial Pacific, not a hypothetical.",
+      "additionalProperties": false,
+      "required": ["min_lat", "max_lat", "min_lon", "max_lon"],
+      "properties": {
+        "min_lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "max_lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "min_lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "max_lon": { "type": "number", "minimum": -180, "maximum": 180 }
+      }
+    },
+    "TimeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
+      }
+    },
+    "FloatTrajectory": {
+      "type": "object",
+      "description": "One float's path over time, as time-ordered surface positions.",
+      "additionalProperties": false,
+      "required": ["wmo_id", "points", "start_time", "end_time", "bbox", "cycle_count"],
+      "properties": {
+        "wmo_id": { "type": "string" },
+        "points": {
+          "type": "array",
+          "description": "Time-ordered ASCENDING.",
+          "items": { "$ref": "#/$defs/TrajectoryPoint" }
+        },
+        "start_time": { "type": "string", "format": "date-time" },
+        "end_time": { "type": "string", "format": "date-time" },
+        "bbox": { "$ref": "#/$defs/GeoBBox" },
+        "cycle_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "FloatSummary": {
+      "type": "object",
+      "description": "Lightweight float record for pickers and lists. Never carries measurement arrays.",
+      "additionalProperties": false,
+      "required": ["wmo_id", "cycle_count", "first_seen", "last_seen", "last_latitude", "last_longitude", "data_mode"],
+      "properties": {
+        "wmo_id": { "type": "string" },
+        "cycle_count": { "type": "integer", "minimum": 0 },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" },
+        "last_latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "last_longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "data_mode": { "$ref": "#/$defs/DataMode" }
+      }
+    },
+    "VariableDescriptor": {
+      "type": "object",
+      "description": "Runtime metadata for one measurable variable. THE mechanism that lets the UI render controls, legends and axes for variables it was never coded against - add one here and the frontend adapts with no code change.",
+      "additionalProperties": false,
+      "required": ["key", "display_name", "unit", "min_value", "max_value", "colormap", "is_extra"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Field name on ArgoFloatPoint, or a key inside its extras map."
+        },
+        "display_name": { "type": "string" },
+        "unit": { "type": "string" },
+        "min_value": { "type": ["number", "null"] },
+        "max_value": { "type": ["number", "null"] },
+        "colormap": {
+          "type": "string",
+          "description": "Names a perceptually-uniform scientific colormap in frontend/design/scales.ts. These are DATA, not brand - never adjusted for aesthetic fit.",
+          "enum": ["thermal", "haline", "viridis", "balance", "dense", "gray"]
+        },
+        "is_extra": {
+          "type": "boolean",
+          "description": "True when the value lives in the extras map rather than as a first-class field."
+        }
+      }
+    }
+  }
+}
