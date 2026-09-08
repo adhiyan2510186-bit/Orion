@@ -1,0 +1,50 @@
+# ---- Secrets ----
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets.json
+
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# ---- Node / frontend ----
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- Data ----
+# Raw ARGO downloads are large and reproducible; sample fixtures ARE committed.
+backend/data/raw/
+backend/data/cache/
+*.nc
+*.parquet
+!backend/data/samples/**
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---- Claude Code ----
+.claude/settings.local.json
