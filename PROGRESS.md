@@ -4,8 +4,8 @@ Living checkpoint file. **Updated and pushed on every meaningful change**, so th
 interrupted session — usage limit, crash, cold start — can resume from here without re-deriving
 anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEMENTATION_PLAN.md`.
 
-**Status:** environment ready, real data cached, decisions locked · no application code written yet
-**Last updated:** 2026-09-09, immediately before build start
+**Status:** P1 complete — contracts frozen and codegen green
+**Last updated:** 2026-09-09, after P1
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -121,7 +121,7 @@ passes** — never mark one done on assumption.
 | Phase | Deliverable | Gate | Status |
 |---|---|---|---|
 | P0 | Environment, deps, real-data recon | stack imports; real `.nc` parsed | **DONE** |
-| P1 | `contracts/` frozen + codegen | `make contracts` twice, zero diff | not started |
+| P1 | `contracts/` frozen + codegen | `make contracts` twice, zero diff | **DONE** — 31 defs, 16 tests green |
 | P2 | FastAPI skeleton, `/meta` `/query` | contract tests vs `NullProvider` | not started |
 | P3 | CSV provider + rule parser + engine | contract suite green for `csv` | not started |
 | P4 | Frontend shell, API client, mock transport | UI renders with backend off | not started |
@@ -136,9 +136,22 @@ passes** — never mark one done on assumption.
 
 ## Current position
 
-**Next action:** P1 — write `contracts/argo.schema.json` and both codegen scripts.
+**Next action:** P2/P3 fused — FastAPI skeleton + Parquet provider + rule parser, driving
+toward the first end-to-end query.
 
 Nothing is half-finished. The working tree is clean.
+
+### Notes carried forward from P1
+
+- **Run tasks with `.\make.ps1 <target>`.** `make` is not on PATH here (only
+  `mingw32-make`); the PowerShell wrapper is the working entry point and also prepends Node.
+- **`.gitattributes` forces LF everywhere.** This is load-bearing: the generators write LF and
+  `contracts-check` diffs regenerated output against the checked-out file, so a CRLF rewrite on
+  checkout would make the gate permanently and falsely red.
+- **`backend/app/schemas/argo.py` is excluded from ruff.** It is generated; its formatting is
+  the generator's contract, not the linter's.
+- The generators implement a deliberately narrow JSON Schema subset and raise on anything
+  else, so an unsupported construct fails loudly rather than emitting a plausible-but-wrong type.
 
 ## Push protocol
 
