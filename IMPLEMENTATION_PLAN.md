@@ -1,5 +1,17 @@
 # FloatChat — Implementation Plan
 
+> **Build status (2026-09-09).** This plan is the original blueprint and is kept as
+> written. The system as **built** is documented in [`docs/architecture.md`](docs/architecture.md),
+> and [`PROGRESS.md`](PROGRESS.md) tracks phase status. Three deliberate divergences,
+> each with an ADR: the v0 provider reads **Parquet, not CSV** (ADR 0001 — the same data
+> is 159 MB as CSV against 5.9 MB as Parquet); the **LLM parser was not built** (ADR 0002
+> — no API key, and the rule parser was strengthened instead); and the theme is
+> **dark only**. Where this document and `docs/architecture.md` disagree, the latter
+> describes reality.
+
+---
+
+
 **Multi-Modal Semantic Query Engine & 4D Visualization for ARGO Oceanographic Data**
 
 | | |

@@ -4,8 +4,8 @@ Living checkpoint file. **Updated and pushed on every meaningful change**, so th
 interrupted session — usage limit, crash, cold start — can resume from here without re-deriving
 anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEMENTATION_PLAN.md`.
 
-**Status:** P1 complete — contracts frozen and codegen green
-**Last updated:** 2026-09-09, after P1
+**Status:** P1–P7 + P9 complete. Full vertical slice runs end to end on real data.
+**Last updated:** 2026-09-09, after the frontend and NetCDF provider
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -121,37 +121,46 @@ passes** — never mark one done on assumption.
 | Phase | Deliverable | Gate | Status |
 |---|---|---|---|
 | P0 | Environment, deps, real-data recon | stack imports; real `.nc` parsed | **DONE** |
-| P1 | `contracts/` frozen + codegen | `make contracts` twice, zero diff | **DONE** — 31 defs, 16 tests green |
-| P2 | FastAPI skeleton, `/meta` `/query` | contract tests vs `NullProvider` | not started |
-| P3 | CSV provider + rule parser + engine | contract suite green for `csv` | not started |
-| P4 | Frontend shell, API client, mock transport | UI renders with backend off | not started |
-| P5 | NetCDF provider + real ARGO fixtures | same suite green for `netcdf` | not started |
-| P6 | deck.gl 3D map + time scrubbing | 50k pts @ 60fps; cursor drives layers | not started |
-| P7 | Inspector: depth profiles, thermocline | click float → profile renders | not started |
-| P8 | LLM parser | **SKIPPED — no API key (locked decision)** | n/a |
-| P9 | Anomaly detectors, summarizer, docs | full e2e | not started |
+| P1 | `contracts/` frozen + codegen | regenerate twice, zero diff | **DONE** — 31 defs |
+| P2 | FastAPI skeleton, `/meta` `/query` | contract tests pass | **DONE** |
+| P3 | Provider + rule parser + engine | contract suite green | **DONE** — see deviation below |
+| P4 | Frontend shell, API client, transport | UI renders | **DONE** |
+| P5 | NetCDF provider + real fixtures | same suite green for `netcdf` | **DONE** — 29 tests, 14 per provider |
+| P6 | deck.gl 3D map + time scrubbing | cursor drives layers | **DONE** — perf unmeasured, see below |
+| P7 | Inspector: profiles, thermocline | click float → profile renders | **DONE** |
+| P8 | LLM parser | — | **SKIPPED** — ADR 0002, no API key |
+| P9 | Detectors, docs, ADRs | full e2e | **DONE** |
 
-**Vertical slice overrides strict phase order:** reach a working query as early as possible
-(P1 → minimal P2 → minimal P3 → minimal P4 → minimal P6), push, then deepen in passes.
+### Verified
+
+- **78 backend tests green**, ruff clean, `tsc --noEmit` clean, `next build` succeeds.
+- Both providers pass the *same* 14-test contract suite. `DATA_PROVIDER=netcdf` serves
+  64,606 measurements straight from a raw unmodified GDAC file.
+- Query latency 63 ms (411 results) to 311 ms (472k-row scan) on the real fixture.
+- CORS preflight verified for the browser's actual request pattern.
+
+### Not verified — be honest about these
+
+- **The 50k-points-at-60fps budget from P6 was never measured.** The Chrome extension
+  was not connected, so no browser screenshot or perf profile was taken. The page
+  server-renders correctly and the production build succeeds, but *nobody has watched
+  the WebGL canvas actually paint*. This is the single biggest open risk.
+- No frontend unit tests. Type safety and the build are the only guards there.
+
+**Vertical slice complete.** A query now runs from typed sentence to rendered 4D cloud.
 
 ## Current position
 
-**Next action:** P2/P3 fused — FastAPI skeleton + Parquet provider + rule parser, driving
-toward the first end-to-end query.
+**Next actions, highest value first:**
 
-Nothing is half-finished. The working tree is clean.
+1. **Open http://localhost:3000 and look at it.** Everything else is verified by test;
+   this is not. Confirm the point cloud paints, the scrubber moves it, and clicking a
+   point fills the inspector.
+2. Measure the P6 perf budget (50k points at 60fps) with the browser profiler.
+3. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
+   but the engine ignores them; `list_floats` ignores its spec argument.
 
-### Notes carried forward from P1
-
-- **Run tasks with `.\make.ps1 <target>`.** `make` is not on PATH here (only
-  `mingw32-make`); the PowerShell wrapper is the working entry point and also prepends Node.
-- **`.gitattributes` forces LF everywhere.** This is load-bearing: the generators write LF and
-  `contracts-check` diffs regenerated output against the checked-out file, so a CRLF rewrite on
-  checkout would make the gate permanently and falsely red.
-- **`backend/app/schemas/argo.py` is excluded from ruff.** It is generated; its formatting is
-  the generator's contract, not the linter's.
-- The generators implement a deliberately narrow JSON Schema subset and raise on anything
-  else, so an unsupported construct fails loudly rather than emitting a plausible-but-wrong type.
+Working tree clean. Both servers were left running on :8000 and :3000.
 
 ## Push protocol
 
