@@ -1,0 +1,143 @@
+/* Font import must precede every other rule, including Tailwind's, or the browser
+   drops it per the CSS spec. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&family=Archivo+Narrow:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+@import 'tailwindcss';
+
+/*
+ * Chart Room theme. Values mirror design/tokens.ts, which mirrors DESIGN.md.
+ * DESIGN.md is authoritative; if these disagree, DESIGN.md wins.
+ *
+ * Fonts are loaded from Google Fonts with real fallbacks. Archivo and Archivo Narrow
+ * are SIL OFL. Commit Mono is not on Google Fonts, so JetBrains Mono (SIL OFL) is the
+ * shipped mono - DESIGN.md names it as the sanctioned drop-in and the system is
+ * unaffected by the substitution.
+ */
+
+@theme {
+  --color-surface: #0d0c0a;
+  --color-neutral: #191714;
+  --color-raised: #26231f;
+  --color-border: #36322e;
+  --color-secondary: #97918a;
+  --color-onsurface: #dbd6d1;
+  --color-primary: #ede9e5;
+  --color-tertiary: #da55a1;
+  --color-tertiary-strong: #f077b1;
+  --color-error: #e46870;
+  --color-warning: #d89f45;
+
+  --font-sans: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --font-condensed: 'Archivo Narrow', 'Archivo', 'Arial Narrow', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Commit Mono', 'SF Mono', Menlo, monospace;
+
+  --radius-none: 0px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-surface);
+  color: var(--color-onsurface);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.55;
+  overscroll-behavior: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Uppercase set at default tracking looks broken rather than emphatic. */
+.label-caps {
+  font-family: var(--font-condensed);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-feature-settings: 'case' 1;
+  color: var(--color-secondary);
+}
+
+/* Monospace with tabular figures and a slashed zero. Load-bearing, not stylistic:
+   a column of latitudes must align on the decimal, and O-versus-0 in a WMO id
+   costs a scientist real time. */
+.data {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+.hairline {
+  border-color: var(--color-border);
+}
+
+/* Focus rings use the accent at 2px with an offset: Scribe line is deliberately too
+   quiet (1.5:1) to carry an interactive boundary. */
+:focus-visible {
+  outline: 2px solid var(--color-tertiary);
+  outline-offset: 1px;
+}
+
+::selection {
+  background: var(--color-tertiary);
+  color: var(--color-surface);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: var(--color-border);
+  outline: none;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  background: var(--color-tertiary);
+  cursor: pointer;
+}
+input[type='range']::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--color-tertiary);
+  cursor: pointer;
+}
+
+/* The interface does not animate; the data does. 120ms on state changes, nothing else. */
+button,
+a,
+input {
+  transition:
+    background-color 120ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 120ms cubic-bezier(0.2, 0, 0, 1),
+    color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
