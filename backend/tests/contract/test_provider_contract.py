@@ -24,7 +24,7 @@ from app.schemas.argo import (
     VariableFilter,
 )
 
-PROVIDERS = ["parquet"]
+PROVIDERS = ["parquet", "netcdf"]
 
 
 def spec(**overrides) -> QuerySpec:
