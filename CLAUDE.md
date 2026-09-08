@@ -9,6 +9,7 @@ oceanographic float data. Python/FastAPI backend, Next.js/deck.gl frontend, mono
 
 | Document | Read it when |
 |---|---|
+| `PROGRESS.md` | **First, every session.** Locked decisions, verified environment facts, real-data gotchas, phase status, and the exact next action. Resume from here. |
 | `PROJECT_CONTEXT.md` | You need the domain problem statement and deliverable criteria. **Authoritative on requirements.** |
 | `IMPLEMENTATION_PLAN.md` | Before writing any code. **Authoritative on architecture, folder layout, schemas, and phase order.** |
 | `docs/adr/` | You are about to contradict an architectural decision. Add an ADR rather than silently diverging. |
