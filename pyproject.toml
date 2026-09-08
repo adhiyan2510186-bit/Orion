@@ -18,3 +18,6 @@ testpaths = ["backend/tests"]
 pythonpath = ["backend"]
 asyncio_mode = "auto"
 filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "contracts"]

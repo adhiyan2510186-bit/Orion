@@ -96,7 +96,10 @@ def test_all_field_names_are_snake_case():
 
 def test_array_fields_are_required_so_they_default_to_empty_not_null():
     """Arrays are [] rather than null, so consumers never branch on nullish arrays."""
-    exempt = {("QuerySpec", "wmo_ids"), ("QuerySpec", "anomaly_codes")}  # null means "unconstrained"
+    exempt = {
+        ("QuerySpec", "wmo_ids"),
+        ("QuerySpec", "anomaly_codes"),
+    }  # null means "unconstrained"
     for name, node in load_all_defs().items():
         required = set(node.get("required", []))
         for field, spec in node.get("properties", {}).items():
