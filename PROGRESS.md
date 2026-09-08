@@ -10,7 +10,10 @@ anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEME
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
 `backend/data/samples/**` confirmed committable despite the global `*.nc`/`*.parquet` ignores.
-**No network is required to build.**
+
+**Network needed?** Backend: **no** — all Python deps are installed and all ARGO data is cached
+locally. Frontend: **yes, once** — `npm install` must fetch Next.js, deck.gl and React from the
+registry (verified reachable). After that install completes, the whole build is offline-capable.
 
 ---
 
