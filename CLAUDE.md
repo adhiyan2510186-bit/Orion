@@ -29,6 +29,17 @@ each encodes the extension-point recipe plus the gate that must pass.
 | `/add-layer` | New deck.gl layer, GLSL shader, or colormap. EP-3. |
 | `/ship` | Verify gates, security-sweep the diff, commit, push. |
 
+**Design work uses `/design-md-planner`** (user-level skill), not `ui-ux-design-enhancer` — the
+user has chosen it explicitly. It authors `DESIGN.md` at the repo root: YAML design tokens plus
+the *argument* for each value, audited with `npx -y -p "@google/design.md" designmd lint`.
+
+`DESIGN.md` is the upstream of `frontend/design/tokens.ts` — the prose holds the reasoning, the
+generated tokens hold the values. Run it **before P6**, since the temperature and salinity
+colormaps are design decisions that get expensive to change once deck.gl layers depend on them.
+
+Node is installed portably at `%LOCALAPPDATA%\Programs\nodejs`. Run `npx` from PowerShell, not
+Git Bash — the npx shim spawns `cmd.exe` and needs the Windows-form PATH.
+
 ## Non-negotiable architecture rules
 
 These exist so future teammates can swap subsystems without refactoring. Violating them defeats
