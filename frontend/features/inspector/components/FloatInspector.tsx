@@ -13,7 +13,8 @@ const nf = (value: number | null | undefined, digits = 2) =>
 export function FloatInspector() {
   const response = useQueryStore((s) => s.response);
   const { floatId, cycle } = useSelectionStore();
-  const { profile, available } = useDepthProfile();
+  const { profile, available, isLoading: profileLoading, error: profileError } =
+    useDepthProfile();
   const { tags, counts, flaggedPoints, total } = useAnomalies();
   const summary = response?.summary;
 
@@ -41,8 +42,10 @@ export function FloatInspector() {
             </div>
             <div className="border-t border-[var(--color-border)]">
               {summary.variable_stats.map((stat) => (
-                <div key={stat.variable} className="flex items-baseline gap-2 px-3 py-1.5">
-                  <span className="label-caps w-[76px]">
+                <div key={stat.variable} className="flex items-baseline gap-3 px-3 py-1.5">
+                  {/* Fixed width with truncation: "temperature" overflows a narrow
+                      column and runs into its own value without it. */}
+                  <span className="label-caps w-[84px] shrink-0 truncate">
                     {stat.variable.replace(/_c$/, '').replace(/_psu$/, '').replace(/_/g, ' ')}
                   </span>
                   <span className="data text-[12px] text-[var(--color-onsurface)]">
@@ -78,9 +81,14 @@ export function FloatInspector() {
             Click a measurement on the map to inspect its water column.
           </p>
         )}
-        {floatId && !profile && (
+        {floatId && !profile && profileLoading && (
           <p className="px-3 py-3 data text-[11px] text-[var(--color-secondary)]">
-            No profile was returned for this float in the current result set.
+            Loading water column…
+          </p>
+        )}
+        {floatId && !profile && !profileLoading && (
+          <p className="px-3 py-3 data text-[11px] text-[var(--color-error)]">
+            {profileError ?? 'No profile available for this cast.'}
           </p>
         )}
         {profile && (
@@ -108,9 +116,9 @@ export function FloatInspector() {
               <Readout label="Mode" value={profile.data_mode.replace('_', ' ')} />
             </div>
             <DepthProfileChart profile={profile} />
-            <p className="data text-[10px] text-[var(--color-secondary)] px-3 pb-2">
-              {profile.levels.length} levels · cycle {cycle ?? profile.cycle_number} of {available}{' '}
-              returned
+            <p className="data px-3 pb-2 text-[10px] text-[var(--color-secondary)]">
+              {profile.levels.length.toLocaleString()} levels
+              {available > 1 && ` · ${available} casts from this float in view`}
             </p>
           </>
         )}

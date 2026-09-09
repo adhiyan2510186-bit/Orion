@@ -3,7 +3,13 @@
  * request shapes. Components never see this; they see hooks.
  */
 
-import type { MetaResponse, QueryRequest, QueryResponse, QuerySpec } from '@/types/argo';
+import type {
+  DepthProfile,
+  MetaResponse,
+  QueryRequest,
+  QueryResponse,
+  QuerySpec,
+} from '@/types/argo';
 import { getTransport } from './transport';
 
 export interface QueryArgs {
@@ -31,6 +37,14 @@ export function runQuery(args: QueryArgs, signal?: AbortSignal): Promise<QueryRe
     },
   };
   return getTransport().postQuery(body, signal);
+}
+
+export function fetchProfile(
+  wmoId: string,
+  cycle: number,
+  signal?: AbortSignal,
+): Promise<DepthProfile> {
+  return getTransport().getProfile(wmoId, cycle, signal) as Promise<DepthProfile>;
 }
 
 export { ApiError } from './transport';

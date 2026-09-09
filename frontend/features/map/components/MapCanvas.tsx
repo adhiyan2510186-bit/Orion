@@ -38,6 +38,9 @@ export function MapCanvas() {
         onViewStateChange={({ viewState: next }) => setViewState(next as OrbitViewState)}
         controller={{ inertia: 250 }}
         layers={layers}
+        // Measurements render at ~2px. Requiring a pixel-exact hit makes them
+        // effectively unclickable with a mouse, so widen the pick radius.
+        pickingRadius={8}
         getCursor={({ isDragging, isHovering }) =>
           isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab'
         }
