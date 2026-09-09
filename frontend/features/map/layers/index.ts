@@ -4,7 +4,14 @@
  * Adding a visualization: write the factory, register it here. Nothing else changes.
  */
 
-import { LineLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { DataFilterExtension, type DataFilterExtensionProps } from '@deck.gl/extensions';
+import {
+  LineLayer,
+  PathLayer,
+  ScatterplotLayer,
+  type ScatterplotLayerProps,
+} from '@deck.gl/layers';
+import type { ArgoFloatPoint } from '@/types/argo';
 import { rgb } from '@/design/tokens';
 import {
   type LayerContext,
@@ -32,12 +39,32 @@ import {
  * only environment available. Anyone with a real GPU should re-run
  * `npm run perf` against both before concluding. See docs/adr/0003-cpu-time-filter.md.
  */
-function timeAlpha(timestamp: string, ctx: LayerContext): number {
-  if (!ctx.timeEnabled) return 200;
+/**
+ * Time filtering runs on the GPU. This is measured, not assumed.
+ *
+ * The obvious implementation - filter the points array by the cursor each frame and
+ * fold an age-based alpha into getFillColor - makes deck.gl re-evaluate every accessor
+ * and re-upload every attribute buffer on every animation frame.
+ *
+ * DataFilterExtension uploads each timestamp once as a static attribute and changes
+ * only a uniform per frame, so playback costs nothing per point. `filterSoftRange`
+ * gives the comet-tail fade in the shader for free.
+ *
+ * Measured at 60,000 points, Intel UHD Graphics 620 (see docs/adr/0003):
+ *
+ *     CPU filter   33.4 ms   29.9 fps
+ *     GPU filter   16.7 ms   59.9 fps   <- vsync-locked, p95 59.5
+ *
+ * Worth knowing: on a SOFTWARE rasteriser the comparison inverts (1.1 fps vs 15),
+ * because rejecting 60k points in the fragment shader is expensive there and nearly
+ * free on real hardware. Benchmark this on a GPU or the result will mislead you.
+ */
+const TIME_FILTER = new DataFilterExtension({ filterSize: 1 });
+
+/** Epoch ms as the filter value. Computed once per point, never per frame. */
+function epoch(timestamp: string): number {
   const t = Date.parse(timestamp);
-  const age = ctx.timeCursor - t;
-  if (age < 0 || age > ctx.timeWindowMs) return 0;
-  return Math.round(60 + 195 * (1 - age / ctx.timeWindowMs));
+  return Number.isFinite(t) ? t : 0;
 }
 
 /** The 4D point cloud: longitude, latitude, depth, and time as the fourth axis. */
@@ -46,12 +73,14 @@ export const pointCloud3d = registerLayer({
   label: 'Measurements',
   supports: () => true,
   build: (ctx) => {
-    const visible = ctx.points.filter((p) =>
-      withinTimeWindow(p, ctx.timeCursor, ctx.timeWindowMs, ctx.timeEnabled),
-    );
-    return new ScatterplotLayer<(typeof visible)[number]>({
+    const range: [number, number] = ctx.timeEnabled
+      ? [ctx.timeCursor - ctx.timeWindowMs, ctx.timeCursor]
+      : [-8.64e15, 8.64e15];
+
+    const props: ScatterplotLayerProps<ArgoFloatPoint> &
+      DataFilterExtensionProps<ArgoFloatPoint> = {
       id: 'point-cloud-3d',
-      data: visible,
+      data: ctx.points,
       pickable: true,
       radiusUnits: 'pixels',
       getRadius: (d) => (d.wmo_id === ctx.selectedFloatId ? 3.4 : 2.1),
@@ -62,8 +91,13 @@ export const pointCloud3d = registerLayer({
           ? ((d as unknown as Record<string, number | null>)[ctx.colorBy.key] ?? null)
           : null;
         const [r, g, b] = ctx.colorScale(value);
-        return [r, g, b, timeAlpha(d.timestamp, ctx)];
+        return [r, g, b, 210];
       },
+      extensions: [TIME_FILTER],
+      getFilterValue: (d) => epoch(d.timestamp),
+      filterRange: range,
+      filterSoftRange: [range[0] + (range[1] - range[0]) * 0.55, range[1]],
+      filterTransformColor: true,
       onClick: (info) => {
         if (info.object) ctx.onSelect(info.object);
         return true;
@@ -72,12 +106,15 @@ export const pointCloud3d = registerLayer({
         ctx.onHover(info.object ?? null);
       },
       updateTriggers: {
-        // Precise triggers matter: an over-broad list forces a full attribute re-upload
-        // every frame during playback and is the usual cause of scrubbing jank.
-        getFillColor: [ctx.colorBy?.key, ctx.timeCursor, ctx.timeEnabled, ctx.timeWindowMs],
+        // Deliberately excludes timeCursor. Time is a uniform now; listing it here
+        // would reintroduce the per-frame attribute re-upload this design removes,
+        // halving the frame rate.
+        getFillColor: [ctx.colorBy?.key],
         getRadius: [ctx.selectedFloatId],
+        getPosition: [ctx.depthExaggeration],
       },
-    });
+    };
+    return new ScatterplotLayer<ArgoFloatPoint>(props as ScatterplotLayerProps<ArgoFloatPoint>);
   },
 });
 

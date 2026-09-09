@@ -1,51 +1,62 @@
-# ADR 0003 - Time filtering stays on the CPU, provisionally
+# ADR 0003 - Time filtering runs on the GPU
 
-**Status:** accepted, pending re-measurement on real hardware · 2026-09-09
+**Status:** RESOLVED · decided 2026-09-09, resolved the same day on real hardware
+**Supersedes:** the provisional "keep it on the CPU" decision recorded earlier
 
 ## Context
 
 The 4D time cursor hides measurements outside a moving window. Two implementations:
 
-1. **CPU filter (shipped).** Filter the points array by the cursor each frame and fold an
+1. **CPU filter.** Filter the points array by the cursor each frame and fold an
    age-based alpha into `getFillColor`. deck.gl re-evaluates accessors and re-uploads
-   attributes whenever the data reference changes - the pattern usually blamed for
-   scrubbing jank.
-2. **GPU filter (`DataFilterExtension`).** Upload the timestamp once as a static
-   attribute; each frame changes only a uniform. `filterSoftRange` provides the fade in
-   the shader. This is what deck.gl documents for exactly this use case.
+   attributes whenever the data reference changes.
+2. **GPU filter (`DataFilterExtension`).** Upload each timestamp once as a static
+   attribute; each frame changes only a uniform. `filterSoftRange` gives the fade in the
+   shader. This is what deck.gl documents for exactly this use case.
 
-Theory says (2) should win decisively. It was implemented and benchmarked.
+## The measurement that nearly led to the wrong answer
 
-## Measurement
-
-`npm run perf`, 60,000 points, 140 frames sampled during playback:
+Both were benchmarked in headless Chromium, the only browser initially available. It
+rasterises with **SwiftShader in software**:
 
 | Implementation | Median frame | FPS |
 |---|---|---|
-| CPU filter | 66.7 ms | **15.0** |
+| CPU filter | 66.7 ms | 15.0 |
 | GPU filter | 949.9 ms | **1.1** |
 
-## Decision
+On that evidence the GPU filter looks 13x worse, and it was reverted. The suspicion was
+recorded at the time: software rasterisation costs roughly 16 µs per point, so drawing
+all 60,000 and rejecting them in the fragment shader dominates everything, while the CPU
+filter only ever submits the visible subset. That cost is nearly zero on real hardware,
+so the comparison should invert.
 
-Ship the CPU filter. Keep the GPU version documented and trivially recoverable.
+## Resolution
 
-## Why the result is not what it looks like
+`measure-perf.mjs` gained a `PERF_GPU=1` mode that launches with a hardware context and
+**prints the renderer it actually got**, so a run can be interpreted rather than trusted.
+Re-measured at 60,000 points on **Intel UHD Graphics 620 (D3D11)**:
 
-The benchmark runs in headless Chromium on **SwiftShader**, a software rasteriser
-costing roughly 16 µs per point. The GPU filter draws all 60,000 points every frame and
-rejects them in the fragment shader, so it pays that cost 60,000 times; the CPU filter
-only ever submits the visible subset. On real hardware that per-point cost is orders of
-magnitude lower and the comparison likely reverses.
+| Implementation | Median frame | FPS | p95 |
+|---|---|---|---|
+| CPU filter | 33.4 ms | 29.9 | 20.0 |
+| **GPU filter** | **16.7 ms** | **59.9** | **59.5** |
 
-So this is a decision made under measurement constraints, not a finding about deck.gl.
+The inversion was real and the theory held. The GPU filter is vsync-locked with a p95
+essentially equal to its median - it is not merely faster, it is *stable*.
+
+**Decision: ship the GPU filter.** `features/map/layers/index.ts` carries these numbers
+at the decision point.
 
 ## Consequences
 
-- The shipped path is the only one verified acceptable in the environment available.
-  Shipping the alternative would have meant overriding a 13x measured regression on the
-  strength of a theory that could not be tested here.
-- **Action for anyone with a GPU:** run `npm run perf`, restore the GPU filter (the
-  rationale block in `features/map/layers/index.ts` describes it), re-run, and switch if
-  it wins. This is a ten-minute task and the expected outcome is that it does.
-- The P6 budget - 50k points at 60fps - is therefore **not verified**. Point count is met
-  (60,000 render); the frame rate figure is meaningless on a software rasteriser.
+- **The P6 budget is MET**: 60,000 points at 60 fps, on integrated graphics. The plan
+  asked for 50k.
+- `updateTriggers` for `getFillColor` must never include `timeCursor`. Adding it
+  reintroduces the per-frame re-upload and halves the frame rate. There is a comment
+  saying so at the code.
+- `npm run perf` still defaults to software, which is reproducible and CI-friendly, but
+  the output now labels itself unmistakably. **Never quote a software number as a
+  hardware result** - that mistake was made here and caught only by re-measuring.
+- The wider lesson is about benchmark environments, not deck.gl: a measurement taken in
+  an environment that inverts the cost model under test is worse than no measurement,
+  because it looks authoritative.

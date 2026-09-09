@@ -126,7 +126,7 @@ passes** — never mark one done on assumption.
 | P3 | Provider + rule parser + engine | contract suite green | **DONE** — see deviation below |
 | P4 | Frontend shell, API client, transport | UI renders | **DONE** |
 | P5 | NetCDF provider + real fixtures | same suite green for `netcdf` | **DONE** — 29 tests, 14 per provider |
-| P6 | deck.gl 3D map + time scrubbing | cursor drives layers | **DONE** — 60k points render; fps gate NOT verified, ADR 0003 |
+| P6 | deck.gl 3D map + time scrubbing | 50k pts @ 60fps | **DONE — gate MET**: 60k @ 60fps on Intel UHD 620 |
 | P7 | Inspector: profiles, thermocline | click float → profile renders | **DONE** |
 | P8 | LLM parser | — | **SKIPPED** — ADR 0002, no API key |
 | P9 | Detectors, docs, ADRs | full e2e | **DONE** |
@@ -141,14 +141,17 @@ passes** — never mark one done on assumption.
 
 ### Not verified — be honest about these
 
-- **The P6 frame-rate gate (50k points at 60fps) is not verified.** Point count is met:
-  60,000 render. But the only browser available is headless Chromium on SwiftShader, a
-  *software* rasteriser at ~16 µs per point, so its fps figures say nothing about real
-  hardware. A GPU-side time filter was implemented and measured *worse* there (1.1 fps
-  vs 15) purely because of that artifact — see ADR 0003. Anyone with a real GPU should
-  run `npm run perf` and re-evaluate; it is a ten-minute task.
 - No frontend unit tests. The Playwright smoke test (`npm run verify`, 15 checks) plus
-  `tsc` are the guards.
+  `tsc` and the production build are the guards.
+- Aggregation modes (`by_float`, `by_time_bucket`) exist in `QuerySpec` but the engine
+  ignores them. `list_floats` ignores its spec argument.
+
+### Resolved since
+
+- **P6 performance gate: MET.** 60,000 points at 60 fps (median 16.7 ms, p95 59.5 fps)
+  on Intel UHD 620, using GPU-side time filtering. The earlier "not verified" note came
+  from benchmarking on a software rasteriser, which *inverted* the result and made the
+  correct implementation look 13x worse. Re-measured on hardware; see ADR 0003.
 
 **Vertical slice complete.** A query now runs from typed sentence to rendered 4D cloud.
 
@@ -156,11 +159,13 @@ passes** — never mark one done on assumption.
 
 **Next actions, highest value first:**
 
-1. **Re-run `npm run perf` in a real browser** and decide the CPU-vs-GPU time filter
-   question left open by ADR 0003. Highest-value remaining item.
-2. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
+1. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
    but the engine ignores them; `list_floats` ignores its spec argument.
-3. Optional: a light theme, deliberately skipped this pass.
+2. Optional: a light theme, deliberately skipped this pass.
+3. Optional: frontend unit tests around the hooks layer.
+
+Nothing is blocked. All plan gates that were defined are now met or explicitly skipped
+with an ADR.
 
 Working tree clean. Both servers were left running on :8000 and :3000.
 

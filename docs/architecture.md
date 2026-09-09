@@ -188,7 +188,7 @@ flowchart TB
 | Query latency | 63 ms (surface heatwave, 411 results) to 311 ms (472k-row deep scan) |
 | Startup | Parquet ~0.4 s · NetCDF ~1 s per float |
 | Frontend smoke test | 15/15 (`npm run verify`) — WebGL paints, query round-trips, picking works |
-| Frame rate | **not verified** — software rasteriser only, ADR 0003 |
+| Frame rate | **60,000 points @ 60 fps** — median 16.7 ms, p95 59.5 fps, Intel UHD 620. GPU-side time filtering, ADR 0003 |
 | Backend tests | 78 green |
 | Contract definitions | 31, generation verified idempotent |
 
