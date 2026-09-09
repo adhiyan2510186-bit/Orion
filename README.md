@@ -125,9 +125,13 @@ Missing values are `null`, never `-999`. Timestamps are ISO-8601 UTC.
 | | |
 |---|---|
 | Backend | 78 tests green · ruff clean |
+| Both providers | 29 contract tests — the same 14 run against `parquet` and `netcdf` |
 | Contracts | 31 definitions · generation verified idempotent |
-| Frontend | `tsc` clean · production build succeeds |
-| Not built | LLM parser (deliberate — no API key; the rule parser is the permanent fallback, not a placeholder) |
+| Frontend | `tsc` clean · production build succeeds · `npm run verify` 15/15 in a real browser |
+| Not verified | The 50k-at-60fps frame-rate gate. Point count is met (60,000 render), but the only browser available rasterises in software, so its fps figures mean nothing. See ADR 0003 — there is a ten-minute task waiting for anyone with a GPU. |
+| Not built | LLM parser (deliberate — no API key; the rule parser is the permanent fallback, not a placeholder). Light theme. Aggregation modes. |
+
+Screenshots of the running app are in `frontend/verification/`.
 
 `ARGO float data were collected and made freely available by the International Argo
 Program and the national programmes that contribute to it.`
