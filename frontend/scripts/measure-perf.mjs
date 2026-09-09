@@ -96,9 +96,16 @@ console.log(
 );
 
 const fps = 1000 / median;
-console.log(
-  `\nP6 budget (50k pts @ 60fps): points ${rendered >= 50_000 ? 'MET' : 'below target'}, ` +
-    `frame rate ${fps >= 55 ? 'MET' : `${fps.toFixed(0)} fps on software rasteriser`}`,
-);
+const pointsVerdict = rendered >= 50_000 ? 'MET' : `below target (${rendered})`;
+// On software the frame rate is not a failure, it is not a measurement. Reporting
+// 'missed' there would repeat exactly the mistake ADR 0003 records.
+const rateVerdict = software
+  ? 'NOT ASSESSABLE on a software rasteriser - re-run with PERF_GPU=1'
+  : fps >= 55
+    ? `MET (${fps.toFixed(1)} fps)`
+    : `MISSED (${fps.toFixed(1)} fps)`;
+console.log(`\nP6 budget (50k pts @ 60fps)`);
+console.log(`  points      ${pointsVerdict}`);
+console.log(`  frame rate  ${rateVerdict}`);
 
 await browser.close();

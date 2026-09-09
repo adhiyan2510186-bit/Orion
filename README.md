@@ -101,6 +101,16 @@ Three ideas carry the whole build:
 .\make.ps1 dev-frontend     next dev on :3000
 ```
 
+From `frontend/`:
+
+```
+npm run verify              15-check browser smoke test (WebGL paints, query round-trips,
+                            picking works, console clean) - writes screenshots
+npm run perf                frame-rate benchmark, software renderer
+PERF_GPU=1 npm run perf     ... on the real GPU. Only this mode's numbers are meaningful;
+                            see ADR 0003 for why that distinction cost a wrong decision.
+```
+
 Config lives in `backend/.env` — `DATA_PROVIDER`, `NLP_PARSER`, `ANOMALY_DETECTORS`.
 
 ## Data provenance and honesty
