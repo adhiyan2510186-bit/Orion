@@ -89,14 +89,22 @@ export const useSelectionStore = create<SelectionState>((set) => ({
 }));
 
 // ---------------------------------------------------------------------------- view
+/**
+ * Basemap style. Local UI state - it never crosses the wire, so it is deliberately
+ * NOT in contracts/. See docs/adr/0004-offline-basemap.md.
+ */
+export type BasemapMode = 'ocean' | 'satellite' | 'graticule';
+
 interface ViewState {
   colorBy: string;
   /** Depth is metres against degrees of longitude, so it needs exaggerating to read. */
   depthExaggeration: number;
   showTrajectories: boolean;
   showGraticule: boolean;
+  basemap: BasemapMode;
   setColorBy: (key: string) => void;
   setDepthExaggeration: (value: number) => void;
+  setBasemap: (mode: BasemapMode) => void;
   toggle: (key: 'showTrajectories' | 'showGraticule') => void;
 }
 
@@ -105,7 +113,10 @@ export const useViewStore = create<ViewState>((set) => ({
   depthExaggeration: 1,
   showTrajectories: true,
   showGraticule: true,
+  /** Vector ocean by default: it carries the geography without competing for chroma. */
+  basemap: 'ocean',
   setColorBy: (colorBy) => set({ colorBy }),
   setDepthExaggeration: (depthExaggeration) => set({ depthExaggeration }),
+  setBasemap: (basemap) => set({ basemap }),
   toggle: (key) => set((state) => ({ [key]: !state[key] }) as Partial<ViewState>),
 }));

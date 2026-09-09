@@ -23,6 +23,18 @@ const QUERY = process.argv[2] ?? 'deeper than 200 m since 2024';
  * than trusted.
  */
 const USE_GPU = process.env.PERF_GPU === '1';
+
+/**
+ * Which basemap style to measure: Ocean (default), Satellite, or Bare.
+ *
+ *   PERF_BASEMAP=Bare PERF_GPU=1 npm run perf
+ *
+ * Bare is the CONTROL - graticule only, which is what the map drew before the basemap
+ * existed. Comparing against it is the only way to attribute a frame-time change to the
+ * geography rather than to the machine, and this file exists because ADR 0003 records
+ * what happens when a number is trusted without that kind of control.
+ */
+const BASEMAP = process.env.PERF_BASEMAP ?? 'Ocean';
 const browser = await chromium.launch({
   // Headless Chromium still needs to be told it may use the GPU; a headed window is
   // the most reliable way to get a hardware context on Windows.
@@ -51,6 +63,20 @@ const rendered = await page.evaluate(() => {
 // every frame re-evaluates the colour accessor for every visible point.
 const play = page.getByRole('button', { name: /play through time/i });
 if (await play.count()) await play.click({ force: true }).catch(() => {});
+
+const group = page.getByRole('group', { name: /basemap style/i });
+if (await group.count()) {
+  await group
+    .getByRole('button', { name: new RegExp(`^${BASEMAP}$`, 'i') })
+    .click()
+    .catch(() => {});
+}
+
+// Settle before sampling. The satellite raster is 2.5 MB to decode and the bathymetry
+// contours tessellate on first draw; both are ONE-OFF costs, and sampling through them
+// measures asset loading rather than the playback frame rate this script reports. Seen
+// in practice: the same build measured 33.2 ms cold and 16.7 ms settled.
+await page.waitForTimeout(4000);
 
 const frames = await page.evaluate(
   () =>

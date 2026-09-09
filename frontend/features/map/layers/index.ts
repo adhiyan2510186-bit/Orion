@@ -22,23 +22,17 @@ import {
 } from './registry';
 
 /**
- * Time filtering happens here in JavaScript, and that is a measured decision.
+ * Basemap factories, imported FIRST on purpose.
  *
- * The textbook alternative is DataFilterExtension, which uploads timestamps once as a
- * static attribute and changes a single uniform per frame - no per-frame accessor
- * evaluation, no attribute re-upload. It was implemented and benchmarked. At 60,000
- * points it measured **1.1 fps against 15 fps** for this approach.
- *
- * That result is an artifact of the measuring environment, not a verdict. Headless
- * Chromium here rasterises with SwiftShader in software at roughly 16 microseconds per
- * point, so drawing all 60,000 and discarding them in the fragment shader dominates
- * everything else. On real hardware, rasterising 60k points is nearly free and the GPU
- * approach should win comfortably.
- *
- * So: the CPU filter ships because it is the only version measured acceptable in the
- * only environment available. Anyone with a real GPU should re-run
- * `npm run perf` against both before concluding. See docs/adr/0003-cpu-time-filter.md.
+ * Registration order is draw order - `useLayerBuilder` flat-maps `registeredLayers()`
+ * in sequence - and ES module imports are evaluated before this module's own body. So
+ * importing them here guarantees the geography registers ahead of the data layers and
+ * paints behind them. The ordering is structural, not a happy accident of file layout.
  */
+import './basemapVector';
+import './basemapSatellite';
+import './oceanLabels';
+
 /**
  * Time filtering runs on the GPU. This is measured, not assumed.
  *

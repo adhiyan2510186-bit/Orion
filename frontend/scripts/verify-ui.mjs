@@ -117,6 +117,18 @@ try {
   check('second query returned results', /measurements from \d+ float/.test(afterQuery ?? ''));
   await page.screenshot({ path: join(OUT, '02-query.png') });
 
+  // The click hunt below finds a measurement by looking for a SATURATED pixel, which
+  // only works against a low-chroma background. The satellite basemap paints saturated
+  // pixels edge to edge and the vector one adds land fill, so either would hand the
+  // scan false targets and break the check for reasons that have nothing to do with
+  // picking. Drop to the bare graticule first, so this check stays exactly as strict
+  // as it was before the basemap existed.
+  await page
+    .getByRole('group', { name: /basemap style/i })
+    .getByRole('button', { name: /^bare$/i })
+    .click();
+  await page.waitForTimeout(600);
+
   // Click an actual painted measurement. Guessing coordinates does not work: points
   // cover well under 1% of the canvas, so a coarse grid scan misses them and reports a
   // false failure. Read the framebuffer, find a saturated (non-graticule) pixel, click there.
@@ -168,6 +180,41 @@ try {
   } else {
     check('playback control present', false, 'button not found');
   }
+
+  console.log('\n== basemap ==');
+
+  // Each style must actually paint. A mode that silently failed to load its asset
+  // would look like an empty canvas, which no other check in this file would catch.
+  const group = page.getByRole('group', { name: /basemap style/i });
+  const litPixels = async () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+      if (!context) return 0;
+      const w = canvas.width;
+      const h = canvas.height;
+      const pixels = new Uint8Array(w * h * 4);
+      context.readPixels(0, 0, w, h, context.RGBA, context.UNSIGNED_BYTE, pixels);
+      let lit = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i] + pixels[i + 1] + pixels[i + 2] > 40) lit += 1;
+      }
+      return lit;
+    });
+
+  for (const [name, floor] of [['Ocean', 20000], ['Satellite', 100000], ['Bare', 500]]) {
+    await group.getByRole('button', { name: new RegExp(`^${name}$`, 'i') }).click();
+    // Vector geometry and the 2.5 MB raster both load from disk on first switch.
+    await page.waitForTimeout(2500);
+    const lit = await litPixels();
+    check(`basemap ${name} paints`, lit > floor, `${lit} lit (> ${floor})`);
+    if (name === 'Ocean') await page.screenshot({ path: join(OUT, '05-basemap-ocean.png') });
+    if (name === 'Satellite') await page.screenshot({ path: join(OUT, '06-basemap-satellite.png') });
+  }
+
+  // Back to the default so the committed screenshots show the shipping state.
+  await group.getByRole('button', { name: /^ocean$/i }).click();
+  await page.waitForTimeout(1200);
 
   console.log('\n== console ==');
   const realErrors = consoleErrors.filter(

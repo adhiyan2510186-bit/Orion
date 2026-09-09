@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "basemap": "node scripts/build-basemap.mjs",
     "verify": "node scripts/verify-ui.mjs verification",
     "perf": "node scripts/measure-perf.mjs"
   },

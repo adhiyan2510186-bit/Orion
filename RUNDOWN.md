@@ -15,7 +15,7 @@ For *how to resume work*, read `PROGRESS.md`. For *why the architecture is shape
 |---|---|
 | **Phases complete** | P1–P7, P9 (8 of 9). P8 not built — deliberate, see §8 |
 | **Backend tests** | **78 passed** (`pytest backend/tests -q`, 49 s) |
-| **Browser verification** | **15/15 checks** against the live dev server (`npm run verify`) |
+| **Browser verification** | **18/18 checks** against the live dev server (`npm run verify`) |
 | **Performance** | **60,000 points at 60 fps** (median 16.7 ms, p95 59.5 fps), Intel UHD 620 |
 | **Real data** | 1,038,872 genuine ARGO measurements · 12 floats · 2023-01-01 → 2026-09-06 |
 | **Source size** | ~5,985 lines across Python + TypeScript (excluding generated types) |
@@ -37,6 +37,9 @@ Four deck.gl layers, each a registered factory rather than hardcoded JSX:
 | `trajectory-paths` | Float drift paths over time |
 | `depth-columns` | Vertical water-column structure per profile |
 | `graticule` | Lat/lon reference grid |
+| `basemap-ocean` | Land, coastline and bathymetric contours (default) |
+| `basemap-satellite` | NASA Blue Marble raster, topography + bathymetry |
+| `ocean-labels` | Ocean and sea names |
 
 - **The 4th dimension** is time: `TimeScrubber` + `usePlayback` drive a time cursor that every
   layer reads. Filtering runs on the GPU via `DataFilterExtension`.
@@ -166,7 +169,8 @@ Next.js (App Router) + React + deck.gl + Tailwind on `:3000`.
 
 ```
 features/
-  map/          MapCanvas · MapControls · useLayerBuilder · layers/{registry,index}
+  map/          MapCanvas · MapControls · useLayerBuilder
+                layers/{registry,index,basemapVector,basemapSatellite,oceanLabels,basemapShared}
   search/       SearchBar · useArgoQuery
   timeline/     TimeScrubber · usePlayback
   inspector/    FloatInspector · DepthProfileChart · useDepthProfile
@@ -248,26 +252,27 @@ example is staged.
 
 The shared provider suite is what makes a data-source swap safe.
 
-### 7.2 Frontend — 15/15 in a real browser
+### 7.2 Frontend — 18/18 in a real browser
 
 `npm run verify` drives headless Chromium against the live dev server:
 
 - Page responds 200 · canvas exists · WebGL context acquired · canvas has real size (1220×763)
-- Canvas painted 7,710 lit pixels of 930,860 · 94 distinct colour buckets
+- Canvas painted 155,164 lit pixels of 928,420 · 96 distinct colour buckets
 - Summary rendered · float count plural (guards a past truncation bug) · anomalies surfaced ·
   no API error banner
 - Second query returned results · clicking a painted point opens the depth profile
-- Playback control engaged · **no console errors**
+- Playback control engaged · each of the three basemap styles paints · **no console errors**
 
 **Caveat:** this runs on SwiftShader (software rasterisation), so it proves *correctness*, not
 frame rate. Performance numbers come from `PERF_GPU=1 npm run perf` on real hardware.
 
-Screenshots: `frontend/verification/{01-loaded,02-query,03-inspector,04-playback}.png`.
+Screenshots: `frontend/verification/{01-loaded,02-query,03-inspector,04-playback,05-basemap-ocean,06-basemap-satellite}.png`.
 
 ### 7.3 Performance
 
-60,000 points at 60 fps — median frame 16.7 ms, p95 59.5 fps, Intel UHD 620. Exceeds the 50k
-target in the plan. Time filtering runs on the GPU via `DataFilterExtension`; the earlier CPU
+60,000 points at 60 fps — median frame 16.7 ms, Intel UHD 620. Exceeds the 50k target in the
+plan, and still holds with the basemap drawn: Ocean, Satellite and the `PERF_BASEMAP=Bare`
+control all measure 16.7 ms / 59.9 fps, so the geography costs no measurable frame time. Time filtering runs on the GPU via `DataFilterExtension`; the earlier CPU
 approach and why it was initially chosen are recorded in `docs/adr/0003-cpu-time-filter.md`.
 
 ---
@@ -319,7 +324,8 @@ Open <http://localhost:3000>. The first example query runs automatically.
 | `.\make.ps1 seed` | Rebuild fixtures from `backend/data/raw` |
 | `.\make.ps1 test` | pytest |
 | `.\make.ps1 lint` | ruff (see §8.2 #2) |
-| `npm run verify` | 15-check browser smoke test |
+| `npm run verify` | 18-check browser smoke test |
+| `npm run basemap` | rebuild the committed offline basemap assets |
 | `PERF_GPU=1 npm run perf` | Frame-rate benchmark on the real GPU |
 
 **Use `make.ps1`, not `make`** — it prepends the portable Node path. `npm` from Git Bash fails
@@ -341,7 +347,7 @@ to `backend/.env` to switch providers or detectors.
 |---|---|---|
 | EP-1 | Data source (NetCDF, Parquet, GDAC, PostGIS, vector DB) | `providers/` + registry |
 | EP-2 | NL parser (LLM, hybrid, local) | `parsers/` + registry |
-| EP-3 | Layer, shader, colormap | `features/map/layers/` + registry |
+| EP-3 | Layer, shader, colormap, basemap style | `features/map/layers/` + registry |
 | EP-4 | Theme | `DESIGN.md` → `tokens.ts`. Zero component edits |
 | EP-5 | New variable (e.g. dissolved oxygen) | Schema → regenerate → provider |
 | EP-6 | Anomaly detector | `services/anomaly.py` + `@register_detector` |

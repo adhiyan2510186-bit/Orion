@@ -5,7 +5,7 @@ interrupted session — usage limit, crash, cold start — can resume from here 
 anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEMENTATION_PLAN.md`.
 
 **Status:** P1–P7 + P9 complete. Full vertical slice runs end to end on real data.
-**Last updated:** 2026-09-09, after the frontend and NetCDF provider
+**Last updated:** 2026-09-09, after the offline basemap (see `BUILD_STATUS.md`)
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -13,7 +13,9 @@ confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitigno
 
 **Network needed?** Backend: **no** — all Python deps are installed and all ARGO data is cached
 locally. Frontend: **yes, once** — `npm install` must fetch Next.js, deck.gl and React from the
-registry (verified reachable). After that install completes, the whole build is offline-capable.
+registry (verified reachable), and `npm run basemap` fetches the Natural Earth / NASA basemap
+assets. Both outputs are committed, so after they complete the whole build is offline-capable.
+The map draws no tiles at runtime — see `docs/adr/0004-offline-basemap.md`.
 
 ---
 
@@ -134,6 +136,9 @@ passes** — never mark one done on assumption.
 ### Verified
 
 - **78 backend tests green**, ruff clean, `tsc --noEmit` clean, `next build` succeeds.
+- **`npm run verify` 18/18** in a real browser, including no console errors, after the basemap.
+- **Basemap costs no frame time**: 60k points hold 59.9 fps in all three styles, measured
+  against a `PERF_BASEMAP=Bare` control. See `BUILD_STATUS.md`.
 - Both providers pass the *same* 14-test contract suite. `DATA_PROVIDER=netcdf` serves
   64,606 measurements straight from a raw unmodified GDAC file.
 - Query latency 63 ms (411 results) to 311 ms (472k-row scan) on the real fixture.
@@ -141,7 +146,7 @@ passes** — never mark one done on assumption.
 
 ### Not verified — be honest about these
 
-- No frontend unit tests. The Playwright smoke test (`npm run verify`, 15 checks) plus
+- No frontend unit tests. The Playwright smoke test (`npm run verify`, 18 checks) plus
   `tsc` and the production build are the guards.
 - Aggregation modes (`by_float`, `by_time_bucket`) exist in `QuerySpec` but the engine
   ignores them. `list_floats` ignores its spec argument.

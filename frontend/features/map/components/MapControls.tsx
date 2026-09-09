@@ -1,7 +1,7 @@
 'use client';
 
 import { colormapToCss, isColormapName } from '@/design/scales';
-import { useViewStore } from '@/lib/state/stores';
+import { type BasemapMode, useViewStore } from '@/lib/state/stores';
 import { useMeta } from '@/lib/hooks/useMeta';
 
 /**
@@ -13,8 +13,17 @@ import { useMeta } from '@/lib/hooks/useMeta';
  */
 export function MapControls() {
   const { variables } = useMeta();
-  const { colorBy, setColorBy, depthExaggeration, setDepthExaggeration, showTrajectories, showGraticule, toggle } =
-    useViewStore();
+  const {
+    colorBy,
+    setColorBy,
+    depthExaggeration,
+    setDepthExaggeration,
+    showTrajectories,
+    showGraticule,
+    basemap,
+    setBasemap,
+    toggle,
+  } = useViewStore();
   const descriptor = variables.find((v) => v.key === colorBy) ?? variables[0] ?? null;
   const colormap = descriptor && isColormapName(descriptor.colormap) ? descriptor.colormap : 'gray';
 
@@ -68,12 +77,37 @@ export function MapControls() {
       </label>
 
       <div className="flex items-center gap-3 shrink-0 ml-auto">
+        {/*
+          Basemap style. A segmented control rather than three toggles because the
+          modes are mutually exclusive - one piece of state, one control.
+        */}
+        <div
+          className="flex items-center gap-px bg-[var(--color-surface)] rounded-[2px] p-px"
+          role="group"
+          aria-label="Basemap style"
+        >
+          {BASEMAP_MODES.map((mode) => (
+            <Toggle
+              key={mode.value}
+              label={mode.label}
+              on={basemap === mode.value}
+              onClick={() => setBasemap(mode.value)}
+            />
+          ))}
+        </div>
+
         <Toggle label="Tracks" on={showTrajectories} onClick={() => toggle('showTrajectories')} />
         <Toggle label="Grid" on={showGraticule} onClick={() => toggle('showGraticule')} />
       </div>
     </div>
   );
 }
+
+const BASEMAP_MODES: { value: BasemapMode; label: string }[] = [
+  { value: 'ocean', label: 'Ocean' },
+  { value: 'satellite', label: 'Satellite' },
+  { value: 'graticule', label: 'Bare' },
+];
 
 function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (

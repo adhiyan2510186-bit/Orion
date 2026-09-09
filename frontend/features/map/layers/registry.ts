@@ -13,6 +13,7 @@
 
 import type { Layer } from '@deck.gl/core';
 import type { RGB } from '@/design/tokens';
+import type { BasemapMode } from '@/lib/state/stores';
 import type {
   ArgoFloatPoint,
   FloatTrajectory,
@@ -35,6 +36,8 @@ export interface LayerContext {
   onHover: (point: ArgoFloatPoint | null) => void;
   showTrajectories: boolean;
   showGraticule: boolean;
+  /** Which basemap style is active. Basemap factories return null for the others. */
+  basemap: BasemapMode;
 }
 
 export interface LayerFactory {

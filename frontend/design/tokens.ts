@@ -58,6 +58,69 @@ export const rgb: Record<keyof typeof colors, RGB> = Object.fromEntries(
   Object.entries(colors).map(([key, hex]) => [key, hexToRgb(hex)]),
 ) as Record<keyof typeof colors, RGB>;
 
+/**
+ * Basemap geography. Reference chrome, NOT data.
+ *
+ * The temptation with an ocean application is to make the ocean blue. DESIGN.md
+ * argues at length against exactly that, and the argument binds here more than
+ * anywhere else in the system: haline and viridis encode measurements in blue and
+ * teal, so a blue seafloor puts thousands of blue pixels on the canvas that mean
+ * nothing. The user would have to learn which blues are water and which are salinity.
+ *
+ * So the basemap is built from the neutral ramp, one or two steps off Chart table,
+ * with only a slight cool bias in the deep end - enough that it reads as water rather
+ * than as a panel, far too little to be mistaken for a colormap sample. On a paper
+ * chart the bathymetry is fine grey line-work, not flood colour; that is the register
+ * being borrowed.
+ *
+ * These are consumed only by deck.gl layers, never by the DOM, so they have no CSS
+ * variable counterpart in globals.css.
+ */
+export const basemapColors = {
+  /** Open water. A half-step below Chart table so the canvas reads as deeper than the page. */
+  ocean: '#090A0C',
+  /** Landmass fill. Warm, one step up from the ocean - land is the raised form. */
+  land: '#17150F',
+  /** Coastline. The firmest line in the basemap; the ocean/land boundary is the one edge that must read. */
+  landEdge: '#4A443C',
+} as const;
+
+/**
+ * Bathymetric contour ramp, 200 m to 6000 m.
+ *
+ * Seven steps, shallow to deep, drifting from the warm neutral border colour toward a
+ * desaturated slate. Chroma stays under ~0.02 OKLCH the whole way - the ramp is legible
+ * as depth structure while staying categorically distinct from a haline sample.
+ * Deliberately DARKENING with depth, matching the convention that deeper water is
+ * heavier ink, and keeping the abyssal plain from competing with the point cloud.
+ */
+export const bathymetryRamp: readonly { depth: number; color: string }[] = [
+  { depth: 200, color: '#3A362F' },
+  { depth: 1000, color: '#332F2A' },
+  { depth: 2000, color: '#2C2926' },
+  { depth: 3000, color: '#262422' },
+  { depth: 4000, color: '#201F1E' },
+  { depth: 5000, color: '#1B1A1A' },
+  { depth: 6000, color: '#161616' },
+] as const;
+
+export const basemapRgb = {
+  ocean: hexToRgb(basemapColors.ocean),
+  land: hexToRgb(basemapColors.land),
+  landEdge: hexToRgb(basemapColors.landEdge),
+} as const;
+
+/** Depth in metres -> contour colour. Nearest defined step; never interpolated. */
+export function bathymetryColor(depthMetres: number): RGB {
+  let closest = bathymetryRamp[0];
+  for (const step of bathymetryRamp) {
+    if (Math.abs(step.depth - depthMetres) < Math.abs(closest.depth - depthMetres)) {
+      closest = step;
+    }
+  }
+  return hexToRgb(closest.color);
+}
+
 /** 4px base. Dense professional UI; 8px would waste rows in the readout tables. */
 export const spacing = {
   xs: 4,

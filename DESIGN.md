@@ -283,6 +283,22 @@ Every value is sampled from a chart room — the plotting table, the instrument 
 
 Scientific colormaps themselves (`thermal`, `haline`, `viridis`, `balance`) are **data, not brand**, and are deliberately not tokenized here. They are perceptually-uniform sequences chosen for scientific correctness and must not be adjusted for aesthetic fit.
 
+## Basemap
+
+The map draws geography beneath the measurements: landmasses, the coastline, bathymetric contours, ocean names, and optionally NASA Blue Marble imagery. This is the one part of the system where the temptation to break the central rule is strongest, so the rule is restated here: **the basemap is chrome, not data.**
+
+**The ocean is not blue, and this is where that costs something.** Every instinct says an oceanographic map should have a blue ocean. But `haline` and `viridis` encode salinity and depth in blue and teal, and a blue seafloor would put tens of thousands of blue pixels on the canvas that mean nothing at all. The user would have to learn, per-pixel, which blues are water and which are salinity — which is precisely the confusion the whole palette exists to prevent. So the water is built from the neutral ramp, one half-step below Chart table, with only a slight cool bias in the deep end: enough to read as water rather than as a panel, far too little to be mistaken for a colormap sample.
+
+- **Ocean (#090A0C):** Open water. Below Chart table, so the canvas reads as *deeper* than the page around it — the viewport is a hole cut in the instrument, not a panel sitting on it.
+- **Land (#17150F):** Landmass fill. Warm, a step above the water. Land is the raised form, and on this palette raised means warmer, matching the tonal ladder.
+- **Land edge (#4A443C):** The coastline. Deliberately the firmest line in the basemap and lighter than Scribe line, because the ocean/land boundary is the one edge a reader orients from; it is the exception to "hairlines are quiet."
+
+**Bathymetry** is a seven-step ramp from 200 m to 6000 m, running `#3A362F` → `#161616`, and it **darkens with depth**. That direction is the opposite of most depth ramps and it is chosen twice over: it matches the chart convention that deeper water carries heavier ink, and it keeps the abyssal plain — which covers most of the Pacific, and therefore most of the canvas — as the quietest thing in the frame rather than the loudest. Chroma stays under 0.02 OKLCH across the whole ramp. On a paper chart bathymetry is fine grey line-work, not flood colour, and that is the register being borrowed.
+
+**Ocean labels** use the condensed uppercase cartographic register in Graphite, the colour for anything that labels a measurement without being one. Names only — oceans and seas, never countries. The dataset lives in open Pacific water, so country labels would be clutter a long way from anything the user is looking at.
+
+**Satellite imagery is the deliberate exception**, and it is quarantined rather than tokenized. It is genuine photography and cannot be desaturated into this palette without becoming useless as imagery. It is therefore held at 55% opacity so the measurements stay the brightest thing in the frame, it is opt-in behind a control, and it is never the default. A colormap must still win against it, which is the test any basemap has to pass.
+
 ## Typography
 
 Two families, split by who the text is for.
