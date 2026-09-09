@@ -8,10 +8,12 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "verify": "node scripts/verify-ui.mjs verification"
+    "verify": "node scripts/verify-ui.mjs verification",
+    "perf": "node scripts/measure-perf.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.0",
+    "@deck.gl/extensions": "^9.4.0",
     "@deck.gl/layers": "^9.1.0",
     "@deck.gl/react": "^9.1.0",
     "next": "^15.5.0",

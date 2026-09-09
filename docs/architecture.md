@@ -187,6 +187,8 @@ flowchart TB
 | Fixture | 1,038,872 measurements · 12 floats · 1,567 profiles · 5.9 MB |
 | Query latency | 63 ms (surface heatwave, 411 results) to 311 ms (472k-row deep scan) |
 | Startup | Parquet ~0.4 s · NetCDF ~1 s per float |
+| Frontend smoke test | 15/15 (`npm run verify`) — WebGL paints, query round-trips, picking works |
+| Frame rate | **not verified** — software rasteriser only, ADR 0003 |
 | Backend tests | 78 green |
 | Contract definitions | 31, generation verified idempotent |
 

@@ -126,7 +126,7 @@ passes** — never mark one done on assumption.
 | P3 | Provider + rule parser + engine | contract suite green | **DONE** — see deviation below |
 | P4 | Frontend shell, API client, transport | UI renders | **DONE** |
 | P5 | NetCDF provider + real fixtures | same suite green for `netcdf` | **DONE** — 29 tests, 14 per provider |
-| P6 | deck.gl 3D map + time scrubbing | cursor drives layers | **DONE** — perf unmeasured, see below |
+| P6 | deck.gl 3D map + time scrubbing | cursor drives layers | **DONE** — 60k points render; fps gate NOT verified, ADR 0003 |
 | P7 | Inspector: profiles, thermocline | click float → profile renders | **DONE** |
 | P8 | LLM parser | — | **SKIPPED** — ADR 0002, no API key |
 | P9 | Detectors, docs, ADRs | full e2e | **DONE** |
@@ -141,11 +141,14 @@ passes** — never mark one done on assumption.
 
 ### Not verified — be honest about these
 
-- **The 50k-points-at-60fps budget from P6 was never measured.** The Chrome extension
-  was not connected, so no browser screenshot or perf profile was taken. The page
-  server-renders correctly and the production build succeeds, but *nobody has watched
-  the WebGL canvas actually paint*. This is the single biggest open risk.
-- No frontend unit tests. Type safety and the build are the only guards there.
+- **The P6 frame-rate gate (50k points at 60fps) is not verified.** Point count is met:
+  60,000 render. But the only browser available is headless Chromium on SwiftShader, a
+  *software* rasteriser at ~16 µs per point, so its fps figures say nothing about real
+  hardware. A GPU-side time filter was implemented and measured *worse* there (1.1 fps
+  vs 15) purely because of that artifact — see ADR 0003. Anyone with a real GPU should
+  run `npm run perf` and re-evaluate; it is a ten-minute task.
+- No frontend unit tests. The Playwright smoke test (`npm run verify`, 15 checks) plus
+  `tsc` are the guards.
 
 **Vertical slice complete.** A query now runs from typed sentence to rendered 4D cloud.
 
@@ -153,12 +156,11 @@ passes** — never mark one done on assumption.
 
 **Next actions, highest value first:**
 
-1. **Open http://localhost:3000 and look at it.** Everything else is verified by test;
-   this is not. Confirm the point cloud paints, the scrubber moves it, and clicking a
-   point fills the inspector.
-2. Measure the P6 perf budget (50k points at 60fps) with the browser profiler.
-3. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
+1. **Re-run `npm run perf` in a real browser** and decide the CPU-vs-GPU time filter
+   question left open by ADR 0003. Highest-value remaining item.
+2. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
    but the engine ignores them; `list_floats` ignores its spec argument.
+3. Optional: a light theme, deliberately skipped this pass.
 
 Working tree clean. Both servers were left running on :8000 and :3000.
 
