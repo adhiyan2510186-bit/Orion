@@ -5,7 +5,11 @@ interrupted session — usage limit, crash, cold start — can resume from here 
 anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEMENTATION_PLAN.md`.
 
 **Status:** P1–P7 + P9 complete. Full vertical slice runs end to end on real data.
-**Last updated:** 2026-09-09, after the offline basemap (see `BUILD_STATUS.md`)
+Now in a **frontend-only UI polish pass** for a recorded demo — plan and phase list in
+`UI_POLISH_PLAN.md`. **P0 done** (design direction + motion reversal, ADR 0005); **P1 next**
+(glass HUD chrome, canvas grain + vignette, tabular numerals, query loading state, and the
+token-driven type/spacing sweep agreed as `UI_POLISH_PLAN.md` §3.3 option (a)).
+**Last updated:** 2026-09-18, after UI polish P0 (see `BUILD_STATUS.md`)
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -29,7 +33,9 @@ Do not reopen these. They were decided with the user and are settled.
 | Sample data | **Equatorial Pacific (Niño 3.4 box)** | 5°S–5°N, 170°W–120°W. Makes the "marine heatwaves near the equator" example query in `PROJECT_CONTEXT.md` return real hot water. |
 | Build order | **Vertical slice first** | One query end-to-end (type → search → map dots → one chart) before deepening any layer. Every stopping point must be demonstrable. |
 | Theme scope | **Dark only** | Per `DESIGN.md`. No light or colorblind-safe theme this pass. |
-| Design system | **Chart Room** | `DESIGN.md` is authoritative and lints clean. `frontend/design/tokens.ts` derives from it. |
+| Design system | **Chart Room** | `DESIGN.md` is authoritative and lints clean. `frontend/design/tokens.ts` derives from it — **by hand**: there is no generator, and no `tailwind.config.ts`. The DOM's palette is the `@theme` block in `globals.css`, a second hand-maintained copy. Change a colour in all three or in none. |
+| Theme direction | **Austere instrument, cinematic canvas** | Chrome stays flat, warm, matte; glow/grain/vignette/additive belong inside the WebGL viewport only. Glass is permitted at the boundary alone. The no-blue-chrome rule survives. |
+| Motion | **Explanatory only** | Replaced the "don't animate the interface" rule. Motion must explain a causal relationship; decoration does not ship. `transform`/`opacity` only. See ADR 0005. |
 
 ## Environment (verified 2026-09-09)
 

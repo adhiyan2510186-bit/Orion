@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: Chart Room
-description: Design system for FloatChat — a 4D visualization and natural-language query platform for ARGO oceanographic float data, used by marine scientists in long analytical sessions.
+description: Design system for FloatChat — a 4D visualization and natural-language query platform for ARGO oceanographic float data. An austere instrument wrapped around a cinematic ocean; the boundary between the two is the design.
 
 colors:
   primary: "#EDE9E5"
@@ -15,6 +15,8 @@ colors:
   border: "#36322E"
   error: "#E46870"
   warning: "#D89F45"
+  glass: "#1F1C18"
+  hud-edge: "#5E564B"
 
 typography:
   display:
@@ -86,6 +88,13 @@ typography:
     fontSize: 11px
     fontWeight: 400
     lineHeight: 1.4
+    fontFeature: "'tnum' 1, 'zero' 1"
+  data-hero:
+    fontFamily: Commit Mono
+    fontSize: 40px
+    fontWeight: 400
+    lineHeight: 1.0
+    letterSpacing: -0.02em
     fontFeature: "'tnum' 1, 'zero' 1"
   identifier:
     fontFamily: Commit Mono
@@ -243,6 +252,20 @@ components:
     backgroundColor: "{colors.tertiary}"
     rounded: "{rounded.full}"
     size: 6px
+  hud-panel:
+    backgroundColor: "{colors.glass}"
+    textColor: "{colors.on-surface}"
+    typography: "{typography.data-sm}"
+    rounded: "{rounded.none}"
+    padding: "{spacing.sm}"
+  hud-edge:
+    backgroundColor: "{colors.hud-edge}"
+    height: 1px
+  stat-hero:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.primary}"
+    typography: "{typography.data-hero}"
+    padding: "{spacing.sm}"
 ---
 
 # Chart Room
@@ -261,6 +284,23 @@ The second consequence is the one that will feel wrong at first: **this ocean ap
 
 What this direction gives up, deliberately: **warmth and first-time approachability.** FloatChat will look austere and slightly forbidding to someone who opens it once. It is built for the fifth hour, not the first minute.
 
+### The governing thesis: the instrument is austere, the water is not
+
+Everything above describes the *chrome*, and it stands. But it is only half the system, and taking it as the whole is the mistake this section exists to prevent.
+
+The interface has two populations of pixels and they obey **opposite** rules:
+
+- **The instrument** — panels, readouts, tables, controls, the inspector column. Flat, warm, matte, dense, unmoving. A machined case. Nothing here glows, nothing here has a shadow, nothing here animates for pleasure.
+- **The water** — everything inside the WebGL canvas. Atmospheric, luminous, deep, and in motion. Points accumulate into brightness where measurements are dense. The camera moves. There is grain in the dark and the corners fall off.
+
+The single most important line in this document is already written elsewhere in it, and it is now promoted to the governing rule: **the viewport is a hole cut in the instrument, not a panel sitting on it.**
+
+That boundary is the whole design. It is the reason the ocean colour sits *below* the page ground rather than above it, the reason the accent may never be an area fill inside the canvas, and the reason a user can tell at a glance which pixels are measurements and which are apparatus. A system that made the chrome cinematic too would destroy the distinction and, with it, the user's ability to trust what they are looking at.
+
+**One material is permitted to exist at the boundary itself:** the translucent HUD surfaces that float over the canvas — the hover readout, the point counter, the map control bar, the scrubber chrome. Those may be glass, because what shows through them is literally the ocean. The instrument proper stays opaque. See *Elevation & Depth*.
+
+**What this thesis gives up:** a coherent single look. Screenshots of the panels and screenshots of the canvas will not appear to come from the same design system, and that is correct — they are not describing the same kind of thing. Anyone tempted to reconcile them should reconcile them in the direction of *more* instrument and *less* glow, never the reverse.
+
 ## Colors
 
 Every value is sampled from a chart room — the plotting table, the instrument housings, and the pencils and inks used to mark a chart by hand. That constraint, not preference, set the palette.
@@ -276,6 +316,10 @@ Every value is sampled from a chart room — the plotting table, the instrument 
 - **Tertiary-strong (#F077B1):** The lighter step of the same ramp, for hover and pressed states only.
 - **Error (#E46870):** *Overprint red.* Chart caution red, pulled toward the magenta family (hue 18°) so it reads as a member of this palette rather than a stock alert imported from elsewhere.
 - **Warning (#D89F45):** *Sounding amber.* Literally the neutral ramp's own hue (76°) taken up to chroma 0.125 — the bronze in the greys, made audible. A caution state in FloatChat is the instrument talking, so it is built from the instrument's own color.
+- **Glass (#1F1C18):** *Fogged port.* The colour a translucent warm-charcoal surface composites to when it sits over open water. It is the one material permitted at the instrument/water boundary, and it exists as a token so that HUD surfaces are a *named* material rather than an improvised opacity. It is deliberately a half-step between Anodized housing and Lifted panel: glass must read as instrument that happens to be translucent, never as a brighter panel. **This token is the composited appearance, not the recipe** — the implementation is this hue at roughly 72% alpha over a 12px backdrop blur, and that pairing is specified in *Elevation & Depth* because alpha and blur are not expressible as colour tokens.
+- **HUD edge (#5E564B):** *Machined bezel.* The lit chamfer where a real instrument's case meets its window — the one place on a matte housing that catches light. It is the only edge in the system brighter than Graphite, and it is reserved exclusively for the boundary between chrome and canvas. Using it as a general border would flatten the single distinction the whole system is built to make, so it appears on perhaps four edges in the entire application.
+
+**The two boundary colours are not decoration, they are the thesis made literal.** Every other colour in this palette describes the instrument or the data. These two describe the *seam*, which is the thing the Overview argues is the design.
 
 **Construction.** The neutral ramp is built in OKLCH with the hue bending from 80° in the shadows to 65° in the highlights and chroma peaking mid-ramp at 0.012 before tapering to 0.005 at both ends. No value in this system has R = G = B. The warmth is not decorative: it is a **hue separation from the data**. The scientific colormaps live in the cool half of the wheel (haline and viridis run blue → teal → green; thermal's mid-range is magenta → red), so a warm-grey chrome is categorically distinguishable from a measurement at a glance, in a way a cool grey never would be.
 
@@ -299,6 +343,26 @@ The map draws geography beneath the measurements: landmasses, the coastline, bat
 
 **Satellite imagery is the deliberate exception**, and it is quarantined rather than tokenized. It is genuine photography and cannot be desaturated into this palette without becoming useless as imagery. It is therefore held at 55% opacity so the measurements stay the brightest thing in the frame, it is opt-in behind a control, and it is never the default. A colormap must still win against it, which is the test any basemap has to pass.
 
+## Canvas
+
+This section governs the cinematic half of the system. Everything here applies **inside the WebGL viewport and nowhere else**. Reading a rule from this section and applying it to a panel is the single most damaging mistake available in this design system.
+
+**The problem being solved.** A scatter of flat, opaque, equally-bright dots is a *plot*. It shows position and it shows value, and it throws away the third thing a scientist actually wants from a cloud of 60,000 measurements: **where the data is dense.** A cluster of two hundred casts and a lone profile currently paint the same brightness. That is a lie of omission, and fixing it is what makes the canvas cinematic rather than merely decorated.
+
+**Density is luminance.** Measurements composite **additively**, so overlapping points accumulate toward white. This is not a glow effect borrowed from a game engine — it is the same reason a long-exposure photograph of traffic shows the busiest lane brightest, and it converts occlusion from a problem into information. A sparse edge of the dataset stays dim; a well-surveyed patch of the equatorial Pacific burns. Two consequences follow and both are accepted:
+
+- Additive blending makes dense regions **lose hue** as they saturate toward white. The colormap therefore reads accurately at the sparse end and approximately in the core. That is the correct trade for this product, because the legend and the readouts carry exact values and the canvas carries *structure*.
+- It composites poorly over bright ground, which is one more reason satellite imagery is capped at 55% and is never the default.
+
+**Atmosphere: grain and vignette.** The canvas carries a fine luminance grain and a soft corner falloff. Both are quiet enough to be deniable in a still and clearly present in motion, and both earn their place mechanically rather than stylistically:
+
+- **Grain** breaks up the banding that a near-black gradient produces on 8-bit displays, and it gives the eye a texture to lock onto so the dark areas read as *space* rather than as a dead region of the screen. Budget: under 4% amplitude. Above that it starts competing with the dimmest measurements, which is the one thing it must never do.
+- **Vignette** does the work a lens does — it pulls attention to the centre of the frame and, more usefully here, it darkens exactly the corners where the HUD readouts sit, buying those surfaces contrast without putting a box around them. Budget: no more than 35% at the extreme corner, and it must fall off smoothly enough that a measurement near the edge is still clearly visible.
+
+**The hard budget.** Atmosphere is the *last* thing drawn and the *first* thing cut. If grain, vignette and additive blending together cost measurable frame time at the established 60,000-point/60 fps budget, they are reduced until they do not. A beautiful canvas that drops frames during time playback has destroyed the one moving thing the product exists to show.
+
+**What stays flat.** The basemap does not glow, does not accumulate, and does not receive grain of its own. It is reference geography — chrome that happens to live inside the viewport — and the atmosphere applies to the water and the measurements, not to the map beneath them.
+
 ## Typography
 
 Two families, split by who the text is for.
@@ -314,6 +378,8 @@ The division is legible and it survives at every size: **if a human wrote it, it
 **Fallback stacks.** Archivo → `'Archivo', 'Helvetica Neue', Arial, sans-serif`. Archivo Narrow → `'Archivo Narrow', 'Archivo', 'Arial Narrow', sans-serif`. Commit Mono → `'Commit Mono', 'JetBrains Mono', 'SF Mono', Menlo, monospace`. Self-host all three with `font-display: swap`. Archivo is SIL OFL and unencumbered; **Commit Mono's licence terms should be confirmed before shipping** — if that check fails, JetBrains Mono (SIL OFL) is the drop-in replacement and the system is unaffected.
 
 **Scale.** Generated at a 1.2 minor third from a 13px base — correct for dense professional UI, where 16px body wastes rows — then broken deliberately at the top: `display` jumps to 32px rather than the 26px the ratio would give, because the one large moment in the interface (the answer to a query) has to feel like a different kind of object than a panel title.
+
+**`data-hero` (40px mono) is the second deliberate break, and it is the only place the apparatus is allowed to shout.** A handful of numbers in this product are not readouts at all — they are the claim the product is making: *1,038,872 measurements. 12 floats. 60,000 points rendered.* Set at `data-md` in a corner, which is where they lived before, they are true and invisible. The scale therefore carries one monospace size far above the rest, used for **no more than four values on screen at once** and never for a value that changes on every frame — a 40px numeral counting up during playback is a distraction, not a hero. Tracking goes to −0.02em because at 40px the mono's default advance opens up and the number stops reading as a single object. It remains Commit Mono, not Archivo: an instrument measured these, and making them large does not make them prose.
 
 Line-height moves inversely to size across the whole scale, from 1.05 at display to 1.6 at `body-lg`. Tracking is optical: −0.03em at display, neutral through body, +0.12em on uppercase labels. **Two weights only, 400 and 700.** Nothing intermediate — 500 and 600 create visual noise without creating hierarchy.
 
@@ -339,6 +405,17 @@ Below 1100px the inspector panel moves to an overlay sheet above the canvas rath
 
 `Surface-raised` is reserved for things actually floating — tooltips, dropdown menus, the anomaly badges that overlay a profile chart. A static panel is not floating, and giving it a raised value flattens the one distinction the ladder exists to make.
 
+**The third mechanism, and it exists at exactly one place: glass.** A surface that floats over the *canvas* — not over a panel — may use Fogged port at ~72% alpha with a 12px backdrop blur, edged on the canvas side with Machined bezel. This is the only translucency in the system.
+
+The reasoning is the Overview's thesis applied literally. Everywhere else, translucency would be decoration: there is nothing meaningful behind a panel, so blurring it simulates a depth that does not exist. Over the canvas there *is* something behind — the ocean, in motion — and letting it through is the honest representation of a readout that belongs to the water rather than to the case. It also solves a real legibility problem: a hover readout must not become an opaque hole punched in the data the user is trying to read.
+
+The rules are narrow on purpose:
+
+- **Glass only ever sits over the canvas.** The inspector column, every `Panel`, every readout grid and the header stay opaque. A glass panel over another panel is the "pile of frosted cards" failure this system's whole tonal ladder exists to avoid.
+- **Blur is capped at 12px and alpha never drops below ~65%.** Below that, text on glass fails against a moving, unpredictable background — a point cloud can put a bright cluster anywhere. Legibility of a measurement beats the effect, always.
+- **Machined bezel edges the glass; Scribe line does not.** This is the boundary, and the boundary is the one edge permitted to be bright.
+- **Shadows remain banned, including under glass.** Blur and the bezel carry the separation. A shadow on near-black is mush, and adding one here would be importing an idiom this system rejected for good reasons.
+
 **A note on interactive outlines**, since `borderColor` is not a valid component token: Scribe line is intentionally quiet (1.5:1 against the page) because a structural rule that competes with data is a bug. It is therefore **not sufficient for interactive boundaries**. Input outlines and any control edge that must be perceivable use Graphite (`#97918A`, 6.3:1 on the page), and focus rings use a 2px Admiralty magenta outline with a 1px offset (5.4:1 on the page, comfortably past the 3:1 the guideline sets for focus indicators).
 
 ## Shapes
@@ -353,6 +430,33 @@ Radius is **hierarchical and it encodes a distinction**: whether a thing is char
 The rule is short enough to remember: **if it holds data it is square; if you click it, it is not.** A uniform radius across the interface would erase the only shape-level information the system carries.
 
 Borders are 1px and never doubled. No element carries a border *and* a raised tonal value *and* a radius — that combination is what makes generated interfaces read as a pile of undifferentiated boxes.
+
+## Motion
+
+**This section replaces an earlier rule that said the interface must not animate at all.** That rule was written to protect something real, and the replacement protects the same thing by a sharper test. The original reasoning was: *the only thing that moves is the data, and universal animation destroys that distinction.* The failure of the rule was that it defended the distinction by banning a whole medium, which also banned the cases where motion is the clearest way to tell the truth.
+
+**The rule now: motion is permitted where it explains a causal relationship, and forbidden as decoration.**
+
+The test is a question with a factual answer, not a matter of taste: *what does this movement teach the user that a static frame would not?* If the answer is "it shows that A produced B," the motion is doing work. If the answer is "it feels polished," it is decoration and it does not ship.
+
+Three things qualify, and they are close to an exhaustive list:
+
+- **Causation between panels.** A sentence becomes a set of filters. The filters produce a result. When chips descend from the query the user typed, the animation is making an argument — *your words became these constraints* — that a static row of chips states but does not demonstrate. This is the highest-value motion in the product because the parsing is the least visible thing it does.
+- **Continuity of viewpoint.** When the camera moves to a new target, interpolating instead of cutting preserves the user's mental model of where they are in a 3D volume. A cut forces re-orientation from scratch; this is the oldest and best-established argument for animation in spatial interfaces, and it is why arrival is a flight rather than a snap.
+- **State that would otherwise appear instantly and therefore invisibly.** A query that returns in 300 ms with no transition gives the user no evidence that anything happened. A brief, honest entry makes cause and effect perceptible. It must never *add* delay to make the product feel busier — it may only occupy latency that already exists.
+
+Everything else does not qualify. Hover states, panel opens and selection remain at **120ms** and are colour-and-opacity only. Data values never animate between numbers: a readout that tweens from 743 to 812 is displaying figures that were never measured, which in this product is a correctness bug wearing a nice coat.
+
+**Duration and easing.** Explanatory motion runs **240–520 ms** — long enough to be perceived as a relationship rather than a glitch, short enough that a second viewing is not a wait. State changes stay at 120 ms. Easing is `cubic-bezier(0.2, 0, 0, 1)` throughout: fast departure, long settle, no overshoot. **Nothing in this system bounces.** An instrument that springs is an instrument that is lying about its mass.
+
+**Staggering** is capped at 40 ms per item and 6 items. Beyond that it stops reading as "these arrived together" and starts reading as a queue the user is waiting on.
+
+**Two hard implementation constraints, which are design decisions and not engineering details:**
+
+1. **Transform and opacity only.** Never `width`, `height`, `top`, `left` or `box-shadow`. Those properties animate on the main thread, and an interface that stutters while claiming to render 60,000 points at 60 fps has undermined the product's central claim in the most visible way available.
+2. **The canvas owns the frame budget.** Chrome animation must never contend with playback. When the time cursor is advancing, the interface is still.
+
+**Reduced motion is a real state, not a checkbox.** With `prefers-reduced-motion: reduce`, every animation here resolves **instantly to its final state** — never to a degraded or half-played one. The parse ribbon shows its chips, the camera is already at its target, points are fully drawn. The product must be completely usable, and completely legible, with every animation in this document removed. If a feature stops making sense without its motion, the motion was carrying meaning that should have been in the layout.
 
 ## Components
 
@@ -370,6 +474,10 @@ Borders are 1px and never doubled. No element carries a border *and* a raised to
 
 **Tooltips** appear on Lifted panel with `body-sm`, 120ms delay, no animation on exit. They may carry an exact value, never an interpretation.
 
+**HUD surfaces** (`hud-panel`) are the readouts that live over the canvas — the hover measurement, the point counter, the map control bar, the scrubber chrome. They are glass per *Elevation & Depth*, square-cornered like every other data surface, and edged with `hud-edge` on the side that meets the canvas. They are **never interactive targets for anything destructive** and they are always `pointer-events: none` unless they contain a control, because a transparent surface that silently swallows clicks aimed at a measurement is indistinguishable from broken picking.
+
+**Stat heroes** (`stat-hero`) carry the four-or-fewer numbers that state what the product is: total measurements, floats, matched results, points rendered. `data-hero` numeral in Chinagraph over Chart table, with a `label-caps` label above it in Graphite, on the same label-above-value pattern as every other readout — the pattern does not change just because the size does. Never more than four on screen, and never bound to a value that updates per frame.
+
 ## Do's and Don'ts
 
 - **Do** keep Admiralty magenta under 5% of the surface. It marks interaction and selection — the primary action, the selected float, the focus ring — and nothing else.
@@ -384,6 +492,10 @@ Borders are 1px and never doubled. No element carries a border *and* a raised to
 - **Do** state the variable and unit on every legend and axis. An unlabeled colormap is not a visualization.
 - **Don't** exceed two font weights (400/700) or reach for 500 and 600. If hierarchy is unclear, the fix is size and spacing, not another weight.
 - **Do** keep prose at a 65ch measure and let it sit in the density contrast — tight tables around a loose paragraph is how this system creates emphasis.
-- **Don't** animate the interface. Motion is 120ms on state changes (hover, selection, panel open) and nothing else: no fade-up on load, no easing on panel content, no transitions on data values. **The only thing that moves is the data** — the time scrubber advancing the 4D cloud. That distinction is the whole point, and universal animation destroys it.
+- **Do** animate only to explain a causal relationship — a sentence becoming filters, a camera keeping its bearings, a result arriving. If the honest answer to *"what does this teach that a static frame would not?"* is "it feels polished," delete it. Explanatory motion is 240–520ms; state changes stay at 120ms.
+- **Don't** animate with any property but `transform` and `opacity`, and don't animate anything while the time cursor is playing. **Never tween a data value** — a number that counts up is displaying figures that were never measured.
+- **Don't** let the chrome become cinematic. Glow, grain, vignette and additive blending belong inside the canvas and nowhere else; the instrument is flat, warm and matte. If a panel and the canvas start to look like the same kind of object, the system has failed.
+- **Do** keep glass at the boundary only — over the canvas, never over another panel — at ≥65% alpha and ≤12px blur, edged with Machined bezel. Text legibility over a moving point cloud beats the effect every time.
+- **Do** give every animation a reduced-motion path that lands on the **final** state instantly. The product must be fully legible with all motion removed.
 - **Don't** center anything. The layout is asymmetric and left-aligned throughout, including headings and empty states.
 - **Do** treat the scientific colormaps as data. They are chosen for perceptual uniformity and are never adjusted to match the brand.

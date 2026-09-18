@@ -51,6 +51,20 @@ export const colors = {
   error: '#E46870',
   /** Sounding amber. The neutral ramp's own hue at higher chroma. */
   warning: '#D89F45',
+  /**
+   * Fogged port. The composited appearance of a translucent warm-charcoal surface
+   * over open water. The ONLY translucency in the system, and only at the boundary -
+   * over the canvas, never over another panel. Pair with `glassMaterial` below; this
+   * hex alone is the colour, not the recipe.
+   */
+  glass: '#1F1C18',
+  /**
+   * Machined bezel. The lit chamfer where an instrument's case meets its window.
+   * The only edge brighter than Graphite, reserved exclusively for the chrome/canvas
+   * boundary. Roughly four edges in the entire application - using it as a general
+   * border flattens the one distinction this system exists to make.
+   */
+  hudEdge: '#5E564B',
 } as const;
 
 /** Numeric forms for WebGL. Same values, different encoding - never a second source. */
@@ -121,6 +135,47 @@ export function bathymetryColor(depthMetres: number): RGB {
   return hexToRgb(closest.color);
 }
 
+/**
+ * Glass, the boundary material. DESIGN.md "Elevation & Depth".
+ *
+ * Alpha and blur are not expressible as colour tokens, so they live here and the hex
+ * in `colors.glass` is the composited appearance. The floors are not stylistic: below
+ * ~65% alpha, text on glass fails against a point cloud that can put a bright cluster
+ * anywhere behind it, and legibility of a measurement beats the effect every time.
+ */
+export const glassMaterial = {
+  /** Never below 0.65. */
+  alpha: 0.72,
+  /** Capped at 12. */
+  blurPx: 12,
+  /** The canvas-facing edge. Machined bezel, never Scribe line. */
+  edge: colors.hudEdge,
+} as const;
+
+/**
+ * Canvas atmosphere. DESIGN.md "Canvas".
+ *
+ * These apply INSIDE the WebGL viewport and nowhere else. Applying any of them to a
+ * panel is the most damaging single mistake available in this design system.
+ *
+ * Both budgets are ceilings with a stated reason, not taste:
+ *  - grain above ~0.04 starts competing with the dimmest measurements, which is the
+ *    one thing it must never do;
+ *  - vignette beyond ~0.35 at the corner begins hiding measurements near the frame
+ *    edge rather than merely seating the HUD readouts that sit there.
+ *
+ * Atmosphere is the last thing drawn and the first thing cut. If it costs measurable
+ * frame time against the 60k-point / 60fps budget, reduce it until it does not.
+ */
+export const canvasAtmosphere = {
+  /** Luminance grain amplitude, 0-1. Breaks 8-bit banding in the near-black. */
+  grainAmplitude: 0.035,
+  /** Corner falloff, 0-1 at the extreme corner. */
+  vignetteStrength: 0.32,
+  /** Measurements composite additively, so density reads as luminance. */
+  additiveBlending: true,
+} as const;
+
 /** 4px base. Dense professional UI; 8px would waste rows in the readout tables. */
 export const spacing = {
   xs: 4,
@@ -158,21 +213,66 @@ export const type = {
   bodyMd: { size: 13, weight: 400, leading: 1.55, tracking: '0' },
   bodySm: { size: 12, weight: 400, leading: 1.45, tracking: '0' },
   labelCaps: { size: 11, weight: 700, leading: 1.3, tracking: '0.12em' },
+  /**
+   * The only place the apparatus shouts. A handful of numbers in this product are not
+   * readouts, they are the claim it is making. Max FOUR on screen, and never bound to
+   * a value that changes per frame - a 40px numeral counting up during playback is a
+   * distraction, not a hero. Still mono: an instrument measured these.
+   */
+  dataHero: { size: 40, weight: 400, leading: 1.0, tracking: '-0.02em' },
   dataLg: { size: 20, weight: 400, leading: 1.2, tracking: '-0.01em' },
   dataMd: { size: 13, weight: 400, leading: 1.45, tracking: '0' },
   dataSm: { size: 11, weight: 400, leading: 1.4, tracking: '0' },
 } as const;
 
 /**
- * Motion. The interface does not animate; the data does. 120ms on state changes and
- * nothing else - no fade-up on load, no transitions on data values. The only thing
- * that moves is the time cursor advancing the 4D cloud.
+ * Motion. DESIGN.md "Motion", which REPLACED an earlier rule banning interface
+ * animation outright. See docs/adr/0005-motion-for-explanation.md.
+ *
+ * The rule: motion is permitted where it explains a causal relationship, and
+ * forbidden as decoration. The test has a factual answer - what does this movement
+ * teach that a static frame would not? "It feels polished" means delete it.
+ *
+ * Two constraints that are design decisions, not engineering details:
+ *   1. transform and opacity ONLY. Never width/height/top/left/box-shadow - those
+ *      animate on the main thread, and stuttering chrome undermines the product's
+ *      central claim (60k points at 60fps) in the most visible way available.
+ *   2. The canvas owns the frame budget. While the time cursor plays, chrome is still.
+ *
+ * Data values never tween. A readout counting from 743 to 812 displays figures that
+ * were never measured - a correctness bug wearing a nice coat.
  */
 export const motion = {
+  /** State changes only: hover, selection, panel open. Colour and opacity. */
   fast: 120,
   medium: 200,
+  /** Explanatory motion floor. Below this it reads as a glitch, not a relationship. */
+  explainFast: 240,
+  /** Explanatory motion ceiling. Above this a second viewing becomes a wait. */
+  explainSlow: 520,
+  /** Per-item stagger. Capped with `staggerMaxItems` - see below. */
+  stagger: 40,
+  /**
+   * Beyond six, a stagger stops reading as "these arrived together" and starts
+   * reading as a queue the user is waiting on.
+   */
+  staggerMaxItems: 6,
+  /** Fast departure, long settle, no overshoot. Nothing in this system bounces. */
   easing: 'cubic-bezier(0.2, 0, 0, 1)',
 } as const;
+
+/**
+ * Reduced motion is a real state, not a checkbox.
+ *
+ * Every animation must resolve INSTANTLY TO ITS FINAL STATE - never to a degraded or
+ * half-played one. Consumers that animate in JS (camera flights, the demo director)
+ * must check this themselves: the blanket `animation: none` rule in globals.css only
+ * reaches CSS, and a JS rAF loop will happily keep moving under it.
+ */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 export const layout = {
   /** Fixed. A scientist comparing two sessions needs the same readout width both times. */

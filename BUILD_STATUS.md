@@ -8,6 +8,64 @@ Newest first.
 
 ---
 
+## 2026-09-18 — P0 of the UI polish pass: design direction + motion reversal
+
+**Status:** complete, all gates pass. Plan in `UI_POLISH_PLAN.md`; decision recorded in
+`docs/adr/0005-motion-for-explanation.md`.
+
+First phase of a frontend-only pass aimed at a recorded demo. **Zero component edits** —
+this phase only moves the design system and the token layer underneath it.
+
+### What changed
+
+| Area | Change |
+|---|---|
+| Thesis | `DESIGN.md` gains a governing idea: **the instrument is austere, the water is cinematic, and the boundary between them is the design.** Promotes a sentence the file already contained ("the viewport is a hole cut in the instrument") to the rule everything else derives from |
+| Motion | The "Don't animate the interface" prohibition is **replaced** by a test: motion is permitted where it explains a causal relationship, forbidden as decoration. New `## Motion` section; ADR 0005 |
+| Canvas | New `## Canvas` section — additive blending so density reads as luminance, grain and vignette with stated amplitude ceilings and the reason for each |
+| Colors | `glass` (#1F1C18) and `hud-edge` (#5E564B) — the two boundary materials. Nothing existing was modified |
+| Typography | `data-hero` (40px mono) — the one place the apparatus is allowed to shout. Max four on screen, never per-frame values |
+| Components | `hud-panel`, `hud-edge`, `stat-hero` wire the new tokens (required: `orphaned-tokens` is colors-only and fires on any unreferenced colour) |
+| `design/tokens.ts` | `glassMaterial`, `canvasAtmosphere`, `type.dataHero`, a real `motion` vocabulary (explainFast/explainSlow/stagger/staggerMaxItems), and `prefersReducedMotion()` |
+| `app/globals.css` | `--color-glass`, `--color-hud-edge`; motion comment corrected to match |
+
+### Two findings worth keeping
+
+1. **`tokens.ts` is not generated and `tailwind.config.ts` does not exist.**
+   `IMPLEMENTATION_PLAN.md:475` says Tailwind imports the tokens; it doesn't. This is
+   Tailwind v4 — the DOM's real palette is the `@theme` block in `globals.css`, a
+   hand-typed duplicate of `tokens.ts`, which itself reaches only five canvas-side
+   files. So "one edit restyles both DOM and canvas" is currently false, and P0 had to
+   edit both by hand. Closing this is open question 5 in `UI_POLISH_PLAN.md`.
+2. **`prefers-reduced-motion` does not fast-forward, it prevents.** `globals.css`
+   applies `animation: none !important`, so an entry animation must be written with the
+   *resting* style as the *finished* style. An `opacity: 0` base with a fade-in keyframe
+   would leave the element permanently invisible for those users. Noted at the rule
+   itself, since P1–P5 all depend on getting this right.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `designmd lint DESIGN.md` | **0 errors, 0 warnings**, 1 info (13 colours, 14 type scales, 29 components) |
+| `designmd diff` vs previous | **Purely additive** — 2 colours, 1 type scale, 3 components added; **nothing modified or removed**; `regression: false` |
+| `npx tsc --noEmit` | clean |
+| `npm run build` | succeeds (41s) |
+| `npm run verify` | **18/18**, including no console errors |
+| `.\make.ps1 contracts-check` | no wire types touched |
+
+The diff being purely additive is the evidence for "zero component edits": no existing
+token changed value, so nothing rendering today could have moved.
+
+### Known limit carried into P1
+
+`npm run verify` reported **1 candidate** for its click-a-measurement check (floor is
+>0). That scan hunts a saturated pixel on the bare graticule, and P3's additive blending
+and staggered entry both change what it finds. It passes today with no margin, so any
+canvas work must re-run this check rather than assume it.
+
+---
+
 ## 2026-09-09 — Realistic ocean & Earth basemap + style toggle
 
 **Status:** complete, all gates pass.
