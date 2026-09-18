@@ -29,6 +29,7 @@ each encodes the extension-point recipe plus the gate that must pass.
 | `/add-parser` | New or swapped NL query parser (rule, LLM tool-calling, hybrid, local). EP-2. |
 | `/add-layer` | New deck.gl layer, GLSL shader, or colormap. EP-3. |
 | `/ship` | Verify gates, security-sweep the diff, commit, push. |
+| `/polish` | Any frontend **visual** work — restyling, layout, type, colour, motion, canvas atmosphere, a `UI_POLISH_PLAN.md` phase. Enforces the token/layering/motion rules and ends every run with a screenshot plus `npm run verify`. |
 
 **Design work uses `/design-md-planner`** (user-level skill), not `ui-ux-design-enhancer` — the
 user has chosen it explicitly. It authors `DESIGN.md` at the repo root: YAML design tokens plus
@@ -66,8 +67,13 @@ the entire point of the build.
      `fetch`.** All network access goes through `lib/api/client.ts`.
 
 5. **No hardcoded colors, spacing, or type sizes in components.** Everything comes from
-   `frontend/design/tokens.ts`, which also feeds `tailwind.config.ts`. Re-theming must require
-   zero component edits.
+   `frontend/design/tokens.ts`. There is no `tailwind.config.ts` — this is Tailwind v4, and the
+   theme is CSS: `scripts/build-theme.mjs` reads `tokens.ts` and writes
+   `frontend/app/theme.generated.css` (the `@theme` block, type scale, spacing base and the
+   semantic utility layer). It runs automatically before `npm run dev` and `npm run build`.
+   **Never hand-edit `app/theme.generated.css` or `app/fonts.generated.css`** — edit `tokens.ts`
+   and regenerate. `text-[13px]`, `#DA55A1` or `p-[7px]` in a component is a bug; if the value
+   you need does not exist, add it to `tokens.ts`. Re-theming must require zero component edits.
 
 6. **Features are isolated.** A file in `features/map/` may import from another feature only via
    that feature's `index.ts`. No reaching into internals.
@@ -89,6 +95,18 @@ make test           # pytest + vitest
 make lint           # ruff + mypy + eslint + import-linter boundary checks
 make seed           # load sample ARGO data into backend/data/samples
 ```
+
+Frontend-only, run from `frontend/` in PowerShell:
+
+```
+npm run theme       # regenerate app/theme.generated.css from design/tokens.ts
+npm run fonts       # re-fetch the self-hosted type families into public/fonts/
+npm run shoot -- x  # screenshot the running app at 1920x1080 -> verification/shots/x.png
+npm run verify      # 18-check Playwright smoke test; must stay 18/18
+```
+
+**Never run `npm run build` while `next dev` is running.** They share `frontend/.next` and the
+build leaves the dev server serving 500s. Stop dev, build, restart dev.
 
 Config switches live in `.env` (documented in `.env.example`):
 `DATA_PROVIDER`, `NLP_PARSER`, `PARSER_FALLBACK_CHAIN`, `ANOMALY_DETECTORS`,

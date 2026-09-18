@@ -476,16 +476,13 @@ change. Questions 5–7 remain open and do not block P0.
 | 3 | Sweep hardcoded type sizes and spacing onto token-driven utilities in P1? | **Yes.** §3.3 option (a). |
 | 4 | Parse-ribbon fidelity | **Word-level highlighting via a frontend phrase gazetteer.** §3.6 option (b) — chosen with the duplication cost understood. |
 
-### 4.2 Still open — not blocking
+### 4.2 Answered before P1
 
-5. **§3.2 — may I generate the `@theme` CSS block from `tokens.ts`** so the palette stops
-   existing in two hand-maintained places?
-
-6. **§3.9 — may I self-host the fonts?** Strongly recommended given the deliverable is a video.
-
-7. **Capture target.** Resolution and aspect for the recording — 1920×1080 or something taller?
-   It changes whether the 380px inspector and the anomaly panel fit above the fold, which
-   affects P1's layout decisions.
+| # | Question | **Decision** |
+|---|---|---|
+| 5 | §3.2 — generate the `@theme` CSS block from `tokens.ts`? | **Yes.** `scripts/build-theme.mjs` imports `design/tokens.ts` directly (Node 24 strips TS types) and writes `app/theme.generated.css`. The palette no longer exists in two hand-maintained places, and the P1 type scale, spacing base and glass values are single-source from the start. Runs automatically before `npm run dev` and `npm run build`. |
+| 6 | §3.9 — self-host the fonts? | **Yes.** `scripts/fetch-fonts.mjs` writes `public/fonts/` + `app/fonts.generated.css`. Archivo and Archivo Narrow are variable fonts, so 400 and 700 share one file: **three files, 83 KB, latin subset only**. The `fonts.googleapis.com` import is gone and the build has no runtime network dependency at all. |
+| 7 | Capture target | **1920×1080.** `scripts/shoot.mjs` renders at exactly this and nothing else — composition reviewed at another width is a frame that will never be recorded. Note `verify-ui.mjs` still uses 1600×950; that is its own fixture and was deliberately left alone. |
 
 ---
 
@@ -566,3 +563,58 @@ contradiction to record.
 ### 5.5 Ready to start
 
 P0 is unblocked. Questions 5–7 do not gate it; I will raise 7 again before P1's layout work.
+
+---
+
+## 6. P1 as built
+
+Shipped. `npm run verify` **18/18**, `tsc` clean, `next build` clean, screenshots in
+`frontend/verification/shots/`.
+
+What landed beyond the file list in §2:
+
+- **`scripts/build-theme.mjs`** and **`scripts/fetch-fonts.mjs`** (decisions 5 and 6), plus
+  **`scripts/shoot.mjs`** — a 1920×1080 screenshot harness, because a visual change that is
+  never looked at is not verified by anything the other gates do. `npm run shoot -- <label>`.
+- **`.claude/skills/polish/`** — the workflow skill for visual work: required reading, the
+  token/layering/motion rules, the shoot-look-iterate loop, and the couplings in §3.5 that a
+  restyle can silently break.
+- **`features/anomalies/index.ts`** — the first feature barrel, closing the §3.4 violation the
+  inspector was committing. P2–P5 add the rest.
+- `layout.profileChartHeight` added to `tokens.ts`; the Recharts SVG font sizes and corner
+  radius now read from the token scale instead of being typed as numbers.
+
+Two deliberate divergences from §2, both recorded rather than silent:
+
+1. **`TimeScrubber` did not get the glass treatment.** §5.1 defines glass as a boundary
+   material, permitted only where the canvas shows through. The scrubber is a full-width
+   instrument row *below* the viewport — nothing shows through it — so glassing it would have
+   contradicted the thesis the same section establishes. It got the weight it actually needed
+   instead: a 4px track (up from a 2px hairline) with a ringed thumb, and the cursor date set
+   at the display data size. The `.glass` utility is used by the two HUD readouts that really
+   do sit over the canvas.
+2. **`type.dataHero` (40px) is defined but unused.** The four inspector summary figures and
+   the header counts are set at `dataLg` (20px). 40px numerals do not fit two-up in a 380px
+   column, and in the header they would have pushed the search row down. `dataHero` is left
+   for P2/P3, where the parse ribbon and the arrival have room for it.
+
+### What P1 could not fix, and P3 must
+
+The canvas is still mostly empty, and on a 1080p frame that is the dominant visual fact —
+more so than the flat lighting §1.4 called out.
+
+The seeded demo query returns **411 points**, not 60,000. They land in one small cluster near
+the equator while the camera sits at a fixed `INITIAL_VIEW` framing the whole east Pacific and
+most of North America. Roughly two-thirds of the viewport is empty near-black.
+
+This also makes the P1 atmosphere nearly invisible, which is worth stating plainly rather than
+discovering again later: both overlays are mounted, correctly sized and `pointer-events: none`
+(confirmed in the live DOM — `elementFromPoint` at canvas centre still returns the canvas), but
+a 32% black vignette over a `#090A0C` basemap is close to a no-op, and 3.5% screen grain over
+near-black lifts by a few levels. **The tokens are not wrong and should not be raised past
+their documented caps** — the caps exist so neither effect competes with a dim measurement.
+They have nothing to act on yet.
+
+The fix belongs to P3 and is a camera problem before it is a rendering one: fit the arrival
+flight to the result bounds so 411 points fill the frame, then let additive blending give the
+cluster luminance for the grain and vignette to sit against.

@@ -6,10 +6,10 @@ anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEME
 
 **Status:** P1–P7 + P9 complete. Full vertical slice runs end to end on real data.
 Now in a **frontend-only UI polish pass** for a recorded demo — plan and phase list in
-`UI_POLISH_PLAN.md`. **P0 done** (design direction + motion reversal, ADR 0005); **P1 next**
-(glass HUD chrome, canvas grain + vignette, tabular numerals, query loading state, and the
-token-driven type/spacing sweep agreed as `UI_POLISH_PLAN.md` §3.3 option (a)).
-**Last updated:** 2026-09-18, after UI polish P0 (see `BUILD_STATUS.md`)
+`UI_POLISH_PLAN.md`. **P0 and P1 done**; **P2 next** (the parse ribbon — word-level
+highlighting via a frontend phrase gazetteer, §4.1 decision 4, with the three containment
+rules in §5.3).
+**Last updated:** 2026-09-18, after UI polish P1 (see `UI_POLISH_PLAN.md` §6)
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -17,9 +17,11 @@ confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitigno
 
 **Network needed?** Backend: **no** — all Python deps are installed and all ARGO data is cached
 locally. Frontend: **yes, once** — `npm install` must fetch Next.js, deck.gl and React from the
-registry (verified reachable), and `npm run basemap` fetches the Natural Earth / NASA basemap
-assets. Both outputs are committed, so after they complete the whole build is offline-capable.
-The map draws no tiles at runtime — see `docs/adr/0004-offline-basemap.md`.
+registry (verified reachable); `npm run basemap` fetches the Natural Earth / NASA basemap
+assets and `npm run fonts` fetches the three type families. All three outputs are committed, so
+after they complete the whole build is offline-capable. The map draws no tiles at runtime (see
+`docs/adr/0004-offline-basemap.md`) and **the fonts are self-hosted as of UI polish P1** — the
+`fonts.googleapis.com` import is gone, so there is now no runtime network dependency at all.
 
 ---
 
@@ -33,7 +35,7 @@ Do not reopen these. They were decided with the user and are settled.
 | Sample data | **Equatorial Pacific (Niño 3.4 box)** | 5°S–5°N, 170°W–120°W. Makes the "marine heatwaves near the equator" example query in `PROJECT_CONTEXT.md` return real hot water. |
 | Build order | **Vertical slice first** | One query end-to-end (type → search → map dots → one chart) before deepening any layer. Every stopping point must be demonstrable. |
 | Theme scope | **Dark only** | Per `DESIGN.md`. No light or colorblind-safe theme this pass. |
-| Design system | **Chart Room** | `DESIGN.md` is authoritative and lints clean. `frontend/design/tokens.ts` derives from it — **by hand**: there is no generator, and no `tailwind.config.ts`. The DOM's palette is the `@theme` block in `globals.css`, a second hand-maintained copy. Change a colour in all three or in none. |
+| Design system | **Chart Room** | `DESIGN.md` is authoritative and lints clean. `frontend/design/tokens.ts` derives from it **by hand** — that step is still manual, and there is no `tailwind.config.ts` (this is Tailwind v4). Everything downstream of `tokens.ts` is **generated**: `scripts/build-theme.mjs` writes `app/theme.generated.css` (the `@theme` block, the type scale, the spacing base and the semantic utilities). The palette is no longer duplicated by hand — change it in `DESIGN.md` and `tokens.ts`, then `npm run theme`. |
 | Theme direction | **Austere instrument, cinematic canvas** | Chrome stays flat, warm, matte; glow/grain/vignette/additive belong inside the WebGL viewport only. Glass is permitted at the boundary alone. The no-blue-chrome rule survives. |
 | Motion | **Explanatory only** | Replaced the "don't animate the interface" rule. Motion must explain a causal relationship; decoration does not ship. `transform`/`opacity` only. See ADR 0005. |
 
@@ -142,7 +144,8 @@ passes** — never mark one done on assumption.
 ### Verified
 
 - **78 backend tests green**, ruff clean, `tsc --noEmit` clean, `next build` succeeds.
-- **`npm run verify` 18/18** in a real browser, including no console errors, after the basemap.
+- **`npm run verify` 18/18** in a real browser, including no console errors, after the basemap
+  and again after UI polish P1 — picking still works through the new canvas overlays.
 - **Basemap costs no frame time**: 60k points hold 59.9 fps in all three styles, measured
   against a `PERF_BASEMAP=Bare` control. See `BUILD_STATUS.md`.
 - Both providers pass the *same* 14-test contract suite. `DATA_PROVIDER=netcdf` serves
@@ -170,15 +173,27 @@ passes** — never mark one done on assumption.
 
 **Next actions, highest value first:**
 
-1. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
+1. **UI polish P2 — the parse ribbon.** `UI_POLISH_PLAN.md` §2 P2 and §5.3. Needs
+   `features/search/index.ts` (barrel) and `features/search/lib/attributeSpec.ts`.
+2. **UI polish P3 — camera choreography and additive blending.** This is the one that
+   fixes the frame: the demo query returns 411 points into a viewport framed for the
+   whole east Pacific, so two-thirds of the canvas is empty and P1's grain and vignette
+   have nothing to act on. See `UI_POLISH_PLAN.md` §6. Requires hoisting `viewState` out
+   of `MapCanvas` into the view store (§3.7).
+3. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
    but the engine ignores them; `list_floats` ignores its spec argument.
-2. Optional: a light theme, deliberately skipped this pass.
-3. Optional: frontend unit tests around the hooks layer.
+4. Optional: a light theme, deliberately skipped this pass.
+5. Optional: frontend unit tests around the hooks layer.
 
 Nothing is blocked. All plan gates that were defined are now met or explicitly skipped
 with an ADR.
 
-Working tree clean. Both servers were left running on :8000 and :3000.
+**Gotcha, cost time once:** never run `npm run build` while `next dev` is running. They
+share `frontend/.next`, and the build leaves the dev server serving 500s with
+`__webpack_modules__[moduleId] is not a function`. Stop dev, build, then restart dev —
+or the gates fail for a reason that has nothing to do with the code.
+
+Both servers were left running on :8000 and :3000.
 
 ## Push protocol
 
