@@ -17,8 +17,17 @@ function formatDate(ms: number): string {
 }
 
 /**
- * The fourth dimension. Scrubbing this is the only motion in the product: DESIGN.md
- * says the interface does not animate, the data does.
+ * The fourth dimension.
+ *
+ * This bar is a full-width instrument row below the viewport, not a HUD floating over
+ * it, so it stays opaque Chart Room - nothing shows through it, and glass is a
+ * boundary material only. What it did need was weight: the control carrying the whole
+ * 4D claim was rendered on a 2px hairline, making it visually the thinnest element on
+ * screen. The track is 4px now (globals.css) and the cursor date is set as a figure
+ * rather than a caption.
+ *
+ * The cursor readout updates every frame during playback, which is exactly why it is
+ * `.data` - tabular figures stop the row reflowing as the digits change.
  */
 export function TimeScrubber() {
   const { cursor, domain, isPlaying, speed, toggle, setSpeed, setCursor } = usePlayback();
@@ -26,8 +35,8 @@ export function TimeScrubber() {
 
   if (!enabled) {
     return (
-      <div className="h-16 flex items-center px-3 bg-neutral border-t border-[var(--color-border)]">
-        <span className="data text-[11px] text-[var(--color-secondary)]">
+      <div className="h-timeline flex items-center px-3 bg-neutral border-t border-[var(--color-border)]">
+        <span className="data text-data-sm text-[var(--color-secondary)]">
           Run a query to enable time scrubbing.
         </span>
       </div>
@@ -35,17 +44,17 @@ export function TimeScrubber() {
   }
 
   return (
-    <div className="h-16 flex flex-col justify-center gap-1.5 px-3 bg-neutral border-t border-[var(--color-border)]">
+    <div className="h-timeline flex flex-col justify-center gap-2 px-3 bg-neutral border-t border-[var(--color-border)]">
       <div className="flex items-center gap-3">
         <button
           onClick={toggle}
-          className="label-caps w-14 h-6 rounded-[4px] bg-[var(--color-raised)] text-[var(--color-primary)] hover:bg-[var(--color-border)]"
+          className="label-caps w-14 h-6 rounded-md bg-[var(--color-raised)] text-[var(--color-primary)] hover:bg-[var(--color-border)]"
           aria-label={isPlaying ? 'Pause playback' : 'Play through time'}
         >
           {isPlaying ? 'Pause' : 'Play'}
         </button>
 
-        <span className="data text-[11px] text-[var(--color-secondary)] w-[86px] shrink-0">
+        <span className="data text-data-sm text-[var(--color-secondary)] w-22 shrink-0">
           {formatDate(domain[0])}
         </span>
 
@@ -60,52 +69,58 @@ export function TimeScrubber() {
           aria-label="Time cursor"
         />
 
-        <span className="data text-[11px] text-[var(--color-secondary)] w-[86px] text-right shrink-0">
+        <span className="data text-data-sm text-[var(--color-secondary)] w-22 text-right shrink-0">
           {formatDate(domain[1])}
         </span>
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="data text-[12px] text-[var(--color-primary)] w-[100px]">
+        <span className="data text-data-lg text-[var(--color-primary)] w-32">
           {formatDate(cursor)}
         </span>
 
         <div className="flex items-center gap-1">
           <span className="label-caps">Speed</span>
           {[0.5, 1, 3].map((value) => (
-            <button
+            <SegmentButton
               key={value}
+              on={speed === value}
               onClick={() => setSpeed(value)}
-              aria-pressed={speed === value}
-              className={`data text-[11px] px-1.5 h-5 rounded-[2px] ${
-                speed === value
-                  ? 'bg-[var(--color-tertiary)] text-[var(--color-surface)]'
-                  : 'bg-[var(--color-raised)] text-[var(--color-secondary)]'
-              }`}
-            >
-              {value}×
-            </button>
+              label={`${value}×`}
+            />
           ))}
         </div>
 
         <div className="flex items-center gap-1 ml-auto">
+          {/* "Trail" is the length of the comet tail behind the cursor - how much
+              history stays lit as time advances. The units on the buttons carry it. */}
           <span className="label-caps">Trail</span>
           {WINDOWS.map((option) => (
-            <button
+            <SegmentButton
               key={option.label}
+              on={windowMs === option.ms}
               onClick={() => setWindow(option.ms)}
-              aria-pressed={windowMs === option.ms}
-              className={`data text-[11px] px-1.5 h-5 rounded-[2px] ${
-                windowMs === option.ms
-                  ? 'bg-[var(--color-tertiary)] text-[var(--color-surface)]'
-                  : 'bg-[var(--color-raised)] text-[var(--color-secondary)]'
-              }`}
-            >
-              {option.label}
-            </button>
+              label={option.label}
+            />
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+function SegmentButton({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={`data text-data-sm px-1.5 h-5 rounded-sm ${
+        on
+          ? 'bg-[var(--color-tertiary)] text-[var(--color-surface)]'
+          : 'bg-[var(--color-raised)] text-[var(--color-secondary)]'
+      }`}
+    >
+      {label}
+    </button>
   );
 }

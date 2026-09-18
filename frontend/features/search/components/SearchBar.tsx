@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useMeta } from '@/lib/hooks/useMeta';
 import { useArgoQuery } from '../hooks/useArgoQuery';
 
@@ -29,6 +30,12 @@ export function SearchBar() {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
+        {/*
+          The hero interaction of the product, and it looked like a filter box. It is
+          taller now and set on Chart table with an accent-lit border while a query is
+          in flight - so the input itself shows that something is happening, rather than
+          the only signal being a word change on the button beside it.
+        */}
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -37,45 +44,62 @@ export function SearchBar() {
           }}
           placeholder="Ask about the ocean — e.g. marine heatwaves near the equator in 2026"
           aria-label="Natural language query"
-          className="flex-1 h-8 px-3 bg-[var(--color-surface)] border border-[var(--color-secondary)] rounded-[2px] text-[13px] text-[var(--color-onsurface)] placeholder:text-[var(--color-secondary)] focus:border-[var(--color-tertiary)] outline-none"
+          className={`flex-1 h-9 px-3 bg-[var(--color-surface)] border rounded-sm text-body-md text-[var(--color-onsurface)] placeholder:text-[var(--color-secondary)] outline-none focus:border-[var(--color-tertiary)] ${
+            isLoading ? 'border-[var(--color-tertiary)]' : 'border-[var(--color-secondary)]'
+          }`}
         />
         <Button variant="primary" onClick={() => void submit()} disabled={isLoading}>
           {isLoading ? 'Searching' : 'Run query'}
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5 min-h-[22px]">
+      {/*
+        The proof that the natural-language parse worked. Reserving the row's height
+        stops the whole header jumping when chips arrive, and the skeletons make the
+        query a visible event instead of a silent swap - on a 300ms query the previous
+        result would otherwise simply be replaced with no perceptible cause.
+      */}
+      <div className="flex flex-wrap items-center gap-1.5 min-h-6">
+        {isLoading && !spec && <SpecChipSkeletons />}
         {spec && <SpecChips spec={spec} />}
         {parse?.unresolved.map((phrase) => (
           <span
             key={phrase}
             title="This phrase was not understood and did not affect the results"
-            className="data text-[11px] px-2 py-0.5 rounded-[2px] bg-[var(--color-raised)] text-[var(--color-warning)] border border-[var(--color-warning)]/30"
+            className="data text-data-sm px-2 py-0.5 rounded-sm bg-[var(--color-raised)] text-[var(--color-warning)] border border-[var(--color-warning)]/30"
           >
             ignored: {phrase}
           </span>
         ))}
         {parse && (
-          <span className="data text-[11px] text-[var(--color-secondary)] ml-auto">
+          <span className="data text-data-sm text-[var(--color-secondary)] ml-auto">
             {Math.round(parse.confidence * 100)}% confidence · {parse.parser_id}
           </span>
         )}
       </div>
 
-      {error && (
-        <div className="data text-[12px] text-[var(--color-error)]">
-          {error}
-        </div>
-      )}
+      {error && <div className="data text-data-sm text-[var(--color-error)]">{error}</div>}
     </div>
   );
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="data text-[11px] px-2 py-0.5 rounded-[2px] bg-[var(--color-raised)] text-[var(--color-secondary)]">
+    <span className="data text-data-sm px-2 py-0.5 rounded-sm bg-[var(--color-raised)] text-[var(--color-onsurface)]">
       {children}
     </span>
+  );
+}
+
+/** Widths are the shapes the real chips settle into, so the row does not reflow. */
+function SpecChipSkeletons() {
+  return (
+    <>
+      <Skeleton className="w-44" />
+      <Skeleton className="w-24" />
+      <Skeleton className="w-40" />
+      <Skeleton className="w-32" />
+    </>
   );
 }
 
@@ -87,8 +111,10 @@ function SpecChips({ spec }: { spec: NonNullable<ReturnType<typeof useArgoQuery>
     const wrapped = min_lon > max_lon ? ' (wraps 180°)' : '';
     chips.push(`lat ${min_lat}..${max_lat}  lon ${min_lon}..${max_lon}${wrapped}`);
   }
-  if (spec.depth_range_m) chips.push(`depth ${spec.depth_range_m.min_m}–${spec.depth_range_m.max_m} m`);
-  if (spec.time_range) chips.push(`${spec.time_range.start.slice(0, 10)} → ${spec.time_range.end.slice(0, 10)}`);
+  if (spec.depth_range_m)
+    chips.push(`depth ${spec.depth_range_m.min_m}–${spec.depth_range_m.max_m} m`);
+  if (spec.time_range)
+    chips.push(`${spec.time_range.start.slice(0, 10)} → ${spec.time_range.end.slice(0, 10)}`);
   for (const filter of spec.variable_filters) {
     chips.push(`${filter.variable.replace(/_c$|_psu$/, '')} ${filter.op} ${filter.value}`);
   }

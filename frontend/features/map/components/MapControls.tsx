@@ -10,6 +10,11 @@ import { useMeta } from '@/lib/hooks/useMeta';
  * The variable list is GENERATED from /meta descriptors, which is why a new backend
  * variable appears here with no frontend change. Nothing about temperature or salinity
  * is hardcoded.
+ *
+ * This bar sits directly above the viewport and is part of the instrument, so it stays
+ * opaque. It also no longer scrolls horizontally: `overflow-x-auto` silently hid the
+ * Tracks and Grid toggles below ~1280px, which on a recording means a control vanishes
+ * mid-shot with no indication it was ever there. It wraps instead, so nothing is lost.
  */
 export function MapControls() {
   const { variables } = useMeta();
@@ -28,13 +33,13 @@ export function MapControls() {
   const colormap = descriptor && isColormapName(descriptor.colormap) ? descriptor.colormap : 'gray';
 
   return (
-    <div className="flex items-center gap-4 px-3 py-2 bg-neutral border-b border-[var(--color-border)] overflow-x-auto">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2 bg-neutral border-b border-[var(--color-border)]">
       <label className="flex items-center gap-2 shrink-0">
         <span className="label-caps">Colour by</span>
         <select
           value={descriptor?.key ?? ''}
           onChange={(event) => setColorBy(event.target.value)}
-          className="data text-[12px] h-6 bg-[var(--color-raised)] text-[var(--color-primary)] border-none rounded-[2px] px-1.5 outline-none"
+          className="data text-data-md h-7 pl-2 pr-6 bg-[var(--color-raised)] text-[var(--color-primary)] border-none rounded-sm outline-none"
         >
           {variables.map((variable) => (
             <option key={variable.key} value={variable.key}>
@@ -44,19 +49,21 @@ export function MapControls() {
         </select>
       </label>
 
-      {/* A colormap without a legend is unreadable data. */}
+      {/* A colormap without a legend is unreadable data. The bar is wider and taller
+          than it was because at 160x10 it is a detail on a 1920px frame; the numbers
+          are the same size, since they are a scale, not a claim. */}
       {descriptor && (
         <div className="flex items-center gap-2 shrink-0">
-          <span className="data text-[11px] text-[var(--color-secondary)]">
+          <span className="data text-data-sm text-[var(--color-secondary)]">
             {descriptor.min_value ?? 0}
           </span>
           <div
-            className="h-2.5 w-40 rounded-[2px]"
+            className="h-3.5 w-52 rounded-sm"
             style={{ background: colormapToCss(colormap) }}
             role="img"
             aria-label={`${descriptor.display_name} colour scale`}
           />
-          <span className="data text-[11px] text-[var(--color-secondary)]">
+          <span className="data text-data-sm text-[var(--color-secondary)]">
             {descriptor.max_value ?? 1} {descriptor.unit}
           </span>
         </div>
@@ -82,7 +89,7 @@ export function MapControls() {
           modes are mutually exclusive - one piece of state, one control.
         */}
         <div
-          className="flex items-center gap-px bg-[var(--color-surface)] rounded-[2px] p-px"
+          className="flex items-center gap-px bg-[var(--color-surface)] rounded-sm p-px"
           role="group"
           aria-label="Basemap style"
         >
@@ -109,15 +116,20 @@ const BASEMAP_MODES: { value: BasemapMode; label: string }[] = [
   { value: 'graticule', label: 'Bare' },
 ];
 
+/**
+ * An off toggle and a disabled control used to be indistinguishable - both were
+ * Graphite caps text on nothing. The off state now carries a hairline, so the control
+ * reads as a control whichever way it is set.
+ */
 function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={on}
-      className={`label-caps px-2 h-6 rounded-[2px] ${
+      className={`label-caps px-2 h-7 rounded-sm border ${
         on
-          ? 'bg-[var(--color-raised)] text-[var(--color-primary)]'
-          : 'bg-transparent text-[var(--color-secondary)]'
+          ? 'bg-[var(--color-raised)] border-[var(--color-raised)] text-[var(--color-primary)]'
+          : 'bg-transparent border-[var(--color-border)]'
       }`}
     >
       {label}

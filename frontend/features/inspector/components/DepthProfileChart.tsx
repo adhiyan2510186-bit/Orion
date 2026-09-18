@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { sampleColormap } from '@/design/scales';
-import { colors } from '@/design/tokens';
+import { colors, radius, type as typeScale } from '@/design/tokens';
 import type { DepthProfile } from '@/types/argo';
 
 /**
@@ -41,7 +41,7 @@ export function DepthProfileChart({ profile }: { profile: DepthProfile }) {
 
   if (data.length < 2) {
     return (
-      <p className="data px-3 py-4 text-[11px] text-[var(--color-secondary)]">
+      <p className="data px-3 py-4 text-data-sm text-[var(--color-secondary)]">
         This cast has too few valid levels to plot.
       </p>
     );
@@ -50,11 +50,13 @@ export function DepthProfileChart({ profile }: { profile: DepthProfile }) {
   const maxDepth = Math.max(...data.map((d) => d.depth));
   const tempColor = `rgb(${sampleColormap('thermal', 0.78).join(' ')})`;
   const salColor = `rgb(${sampleColormap('haline', 0.5).join(' ')})`;
-  const tick = { fill: colors.secondary, fontSize: 10, fontFamily: 'var(--font-mono)' };
+  // Recharts renders SVG text, so these cannot come from a CSS class - the sizes are
+  // read from the token scale directly rather than typed as numbers here.
+  const tick = { fill: colors.secondary, fontSize: typeScale.dataSm.size, fontFamily: 'var(--font-mono)' };
 
   return (
     <div className="px-1 pb-2">
-      <div className="h-[300px]">
+      <div className="h-profile-chart">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart layout="vertical" data={data} margin={{ top: 10, right: 14, bottom: 4, left: 0 }}>
             <CartesianGrid stroke={colors.border} strokeWidth={1} />
@@ -99,9 +101,9 @@ export function DepthProfileChart({ profile }: { profile: DepthProfile }) {
               contentStyle={{
                 background: colors.surfaceRaised,
                 border: 'none',
-                borderRadius: 2,
+                borderRadius: radius.sm,
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
+                fontSize: typeScale.dataSm.size,
               }}
               labelStyle={{ color: colors.secondary }}
               itemStyle={{ color: colors.onSurface }}
@@ -121,7 +123,7 @@ export function DepthProfileChart({ profile }: { profile: DepthProfile }) {
                 label={{
                   value: `thermocline ${profile.derived.thermocline_depth_m.toFixed(0)} m`,
                   fill: colors.tertiary,
-                  fontSize: 10,
+                  fontSize: typeScale.dataSm.size,
                   position: 'right',
                 }}
               />
@@ -135,7 +137,7 @@ export function DepthProfileChart({ profile }: { profile: DepthProfile }) {
                 label={{
                   value: `MLD ${profile.derived.mixed_layer_depth_m.toFixed(0)} m`,
                   fill: colors.secondary,
-                  fontSize: 10,
+                  fontSize: typeScale.dataSm.size,
                   position: 'left',
                 }}
               />
@@ -167,7 +169,7 @@ export function DepthProfileChart({ profile }: { profile: DepthProfile }) {
       <div className="flex items-center gap-3 px-3 pt-1">
         <LegendKey color={tempColor} label="Temp °C" />
         <LegendKey color={salColor} label="Salinity PSU" dashed />
-        <span className="data ml-auto text-[10px] text-[var(--color-secondary)]">
+        <span className="data ml-auto text-data-sm text-[var(--color-secondary)]">
           {profile.derived.method}
         </span>
       </div>
@@ -186,7 +188,7 @@ function LegendKey({ color, label, dashed }: { color: string; label: string; das
             : { background: color }
         }
       />
-      <span className="data text-[10px] text-[var(--color-secondary)]">{label}</span>
+      <span className="data text-data-sm text-[var(--color-secondary)]">{label}</span>
     </span>
   );
 }

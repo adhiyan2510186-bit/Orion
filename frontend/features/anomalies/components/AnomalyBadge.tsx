@@ -14,20 +14,20 @@ const TONE: Record<string, string> = {
 
 export function AnomalyBadge({ tag, count }: { tag: AnomalyTag; count?: number }) {
   return (
-    <div className="bg-[var(--color-raised)] rounded-[2px] px-2 py-1.5">
+    <div className="bg-[var(--color-raised)] rounded-sm px-2 py-1.5">
       <div className={`flex items-center gap-1.5 ${TONE[tag.severity]}`}>
         <span aria-hidden>{GLYPH[tag.severity]}</span>
         <span className="label-caps text-current">{tag.label}</span>
         <span className="ml-auto label-caps text-current opacity-80">{tag.severity}</span>
       </div>
       {/* Evidence inline: a flag a scientist cannot audit is one they will not trust. */}
-      <div className="data text-[11px] text-[var(--color-secondary)] mt-1">
+      <div className="data text-data-sm text-[var(--color-secondary)] mt-1">
         {Object.entries(tag.evidence)
           .map(([key, value]) => `${key.replace(/_/g, ' ')} ${value}`)
           .join('  ·  ')}
       </div>
       {count !== undefined && (
-        <div className="data text-[11px] text-[var(--color-secondary)] mt-0.5">
+        <div className="data text-data-sm text-[var(--color-secondary)] mt-0.5">
           {count.toLocaleString()} measurements · detected by {tag.detected_by}
         </div>
       )}
