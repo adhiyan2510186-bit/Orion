@@ -10,7 +10,8 @@ Now in a **frontend-only UI polish pass** for a recorded demo — plan and phase
 `main`, because P1.5 left two gates open — see "Open questions". **P2 (the parse ribbon)
 was skipped on instruction** and is the remaining polish phase, along with what is left
 of P3 (scripted demo camera; §3.7's `viewState` hoist is still not needed).
-**Last updated:** 2026-09-18, after UI polish P3 (see `UI_POLISH_PLAN.md` §8)
+**Last updated:** 2026-09-18, after the canvas-ground pass (see `UI_POLISH_PLAN.md` §9
+and ADR 0007)
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -41,7 +42,8 @@ Do not reopen these. They were decided with the user and are settled.
 | Motion | **Explanatory only** | Replaced the "don't animate the interface" rule. Motion must explain a causal relationship; decoration does not ship. `transform`/`opacity` only. See ADR 0005. |
 | Context cloud | **Draw what did not match** | Showing only survivors renders a filter as an absence. A registered `context-cloud` layer draws the rejected measurements dim and neutral beneath the results, from a second relaxed query. Default on. See ADR 0006 — including a measured frame cost that is still open. |
 | Arrival camera | **Top-down, then ease to 35° over 2.5 s** | A plan view reads as a map, an oblique one as a volume; the rotation is what says the third axis exists. **Diverges from `DESIGN.md`'s 240–520 ms band** on the build owner's instruction — the band protects chrome, and the canvas is explicitly exempt from the instrument's austerity. Value and argument in `tokens.camera`. |
-| Additive blending | **On, at a measured gain** | Density is luminance, per `DESIGN.md`. Confirmed working by lit-pixel delta (max pixel sum 660 → 765). But it costs colormap hue 76% → 47% even at its best gain, because ARGO points are co-located stacks rather than a distributed field — there is no sparse end for the spec's promise to hold at. `additiveBlending: false` reverts it. See `UI_POLISH_PLAN.md` §8.3. |
+| Additive blending | **OFF** | Built and measured in P3, then turned off once the ground was lifted. `DESIGN.md` predicted it: additive "composites poorly over bright ground". Colormap hue retention 46.9% (on) vs 71.3% (off) over the new ground, for a difference that is visually negligible at demo framing. One token restores it. See ADR 0007. |
+| Canvas ground | **Depth tinting + desaturated NASA relief** | The canvas was a single luminance value across 75% of the frame. Contour rings are now filled, not just stroked, and the committed topo+bathymetry raster is drawn desaturated beneath the default style. Deep water takes a bounded cool cast (mean chroma ≤ 8; measured 6.47). Amends `DESIGN.md`'s "the ocean is not blue". See ADR 0007. |
 
 ## Environment (verified 2026-09-09)
 
@@ -211,37 +213,32 @@ the work it describes. Conventional commit messages, scopes per `CLAUDE.md`.
 
 ## Open questions for the user
 
-**Two, both blocking the `wip/p15-framing` → `main` merge.** Both are consequences of
-UI polish P1.5, both are reported rather than quietly adjusted.
+**One, and it is a gate-design question rather than a bug.**
 
-**1. `npm run verify` is 16–18, two basemap floors involved, for two different
-reasons.** Measured over three runs:
-
-```
-FAIL  basemap Ocean      7,901 / 7,940 / 7,940 lit  (> 20000)    deterministic
- ??   basemap Satellite  4,315 / 433,542 / 4,328    (> 100000)   FLAKY
-PASS  basemap Bare       2,946 / 2,690 / 2,946      (> 500)
-```
-
-*Ocean* — stale threshold. Nothing about the basemap changed; P1.5's arrival camera
-fits the result bounds, so the frame is open equatorial ocean instead of most of North
-America, and the floor was calibrated against the old fixed camera. `UI_POLISH_PLAN.md`
-§3.5 makes changing a check a deliberate conversation, so it has not been touched.
-
-*Satellite* — a real race this work introduced. It passes at 433,542 once the 2.5 MB
-Blue Marble raster decodes and fails at ~4,300 before that; the context cloud's 14–20 MB
-second request now competes with the decode. This one will misreport on any loaded
-machine, not just at this framing, and should be fixed rather than recalibrated.
-
-**2. The context cloud costs ~16 ms/frame and it defaults on.** Measured on Intel UHD
-620, hardware GPU, same run order, with `PERF_CONTEXT=off` as the control:
+**`npm run verify` reports 18/18, and that number should not be read as success.** The
+lit-pixel threshold is `r+g+b > 40`. The old ocean `#090A0C` summed to 31, so the water
+was never counted; the amended ground crosses it, so:
 
 ```
-context OFF (control)   median 16.9 ms   59.2 fps   MET
-context ON              median 33.1 ms   30.2 fps   MISSED
+canvas painted non-background pixels   877,384 of 878,400   (99.9% of the frame)
+basemap Ocean paints                   878,400 lit (> 20000)
+basemap Satellite paints               442,276 lit (> 100000)
+basemap Bare paints                      2,316 lit (> 500)
 ```
 
-Overdraw, not vertex count: a profile stacks ~350 translucent points into an ~18 px
-column. Options are listed at the end of `docs/adr/0006-context-cloud.md` — subsample
-depth levels for that layer, default it off, or accept 30 fps and re-measure on the
-capture machine.
+`canvas painted non-background pixels` would now pass **with zero data drawn**, and the
+Ocean floor that P1.5 left failing now passes for entirely the wrong reason. Both want
+re-anchoring — count pixels above the basemap's own ground level, or count saturated
+pixels, which only data produces. `UI_POLISH_PLAN.md` §3.5 makes changing a check a
+deliberate conversation, so neither has been touched.
+
+### Closed since — two of them were my own measurement errors
+
+**The context cloud does NOT cost ~16 ms/frame.** P1.5 recorded 59.2 → 30.2 fps and
+listed it as blocking. Measured back-to-back on an idle machine the delta is **0.2 ms**
+(16.7 ms context-off vs 16.9 ms context-on, both MET). The P1.5 A/B drifted mid-session.
+
+**P3's motion work costs nothing either**, which P3 already concluded but could not prove
+in absolute terms — it measured 30.0 fps for every configuration including a stashed
+baseline. The same code now measures **59.9 fps**. Both errors are the trap ADR 0003
+exists to prevent, and both were caused by the machine, not the code.

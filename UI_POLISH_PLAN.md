@@ -832,3 +832,60 @@ otherwise idle machine, which is also the right condition for the recording itse
 failures**. The canvas checks specifically pass: 102 colour buckets, lit-pixel floor met, picking
 still works through the overlays, zero console errors. The entry animation was the real risk
 here, since the pixel scan runs immediately after the summary text appears, and it clears.
+
+---
+
+## 9. Canvas ground — "too plain black"
+
+Full reasoning and every measurement in `docs/adr/0007-canvas-ground.md`. Summary:
+
+The complaint was that the UI read as plain black. It did, measurably: **three-quarters of the
+canvas was a single luminance value** (9.9/255), because the ocean was one opaque quad, the 631
+bathymetry rings drew only as 0.7 px sub-pixel strokes, and the ramp darkened into near-black
+over a dataset that sits entirely on abyssal plain.
+
+Three changes, canvas only, no chrome token moved:
+
+1. **Depth tinting** — contour rings filled as well as stroked, painted shallow-first so each
+   deeper band nests on top. `basemapColors.ocean` changed meaning as a result: it is now the
+   *shelf* (what the 200 m ring leaves uncovered), so it is the lightest tone, not the darkest.
+2. **Ocean relief** — the committed NASA topo+bathymetry raster drawn under the default style,
+   desaturated in a fragment shader. Necessary because the demo frame sits inside the 4000 m
+   ring with 5000 m to the west, so the vector contours can only produce **two tones** there.
+3. **Contours widened** 0.7 → 1.2 px, so 631 rings stop rendering as nothing.
+
+```
+                          before    after    target
+interquartile spread        0.0      8.8      >= 6
+mean chroma                 2.94     6.47     <= 8
+distinct luminance levels   ~1       206      >= 6
+```
+
+### Three outcomes worth reading
+
+**The atmosphere budgets did not move, and that was the finding.** The plan was to re-derive
+grain and vignette against the new ground. Re-deriving them says leave them alone: both caps
+are justified in terms of the *measurements*, which never changed, and the effects were failing
+only because they had nothing to act on. At the new ground the same 0.32 vignette darkens
+corners by ~6.7 levels instead of ~3.2.
+
+**Additive blending is now off.** `DESIGN.md` predicted the interaction — additive "composites
+poorly over bright ground". Hue retention 46.9% on / 71.3% off over the new ground, visually
+near-identical at demo framing. It was costing legibility and buying nothing.
+
+**Two `verify` checks stopped discriminating.** 18/18 is reported, and it is not success — see
+`PROGRESS.md` "Open questions". The Ocean floor that §7.3 left failing now passes for the wrong
+reason.
+
+### Corrections to §7 and §8
+
+Both of this plan's outstanding perf concerns were **my own measurement errors**, caused by a
+contended machine rather than by code:
+
+- §7.3's "context costs ~16 ms/frame, 59.2 → 30.2 fps" is not reproducible. Back-to-back on an
+  idle machine the delta is **0.2 ms**.
+- §8.4 could not establish an absolute frame rate and measured 30.0 fps for everything. The same
+  code now measures **59.9 fps**.
+
+Both are the attribution trap ADR 0003 exists to prevent, caught the same way both times — by
+re-measuring with a control instead of trusting a remembered number.

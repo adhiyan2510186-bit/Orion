@@ -91,8 +91,19 @@ export const rgb: Record<keyof typeof colors, RGB> = Object.fromEntries(
  * variable counterpart in globals.css.
  */
 export const basemapColors = {
-  /** Open water. A half-step below Chart table so the canvas reads as deeper than the page. */
-  ocean: '#090A0C',
+  /**
+   * Continental shelf - water SHALLOWER than the 200 m contour, and the lightest tone in
+   * the ocean.
+   *
+   * This was `#090A0C`, the darkest value in the system, and that was a category error
+   * with no visible consequence: bathymetry was drawn only as sub-pixel strokes, so the
+   * plane was the entire ocean and nothing contradicted it. Once the depth bands are
+   * FILLED, this quad is exactly what is left uncovered by the 200 m ring - which is
+   * shelf, not abyss. Verified: every open-ocean probe (N Atlantic, S Pacific, Indian,
+   * Southern, N Pacific, Arctic, equatorial Pacific) falls inside a 200 m ring, and a
+   * coastal probe off California falls outside. Shallow reads light, as on any chart.
+   */
+  ocean: '#4A463D',
   /** Landmass fill. Warm, one step up from the ocean - land is the raised form. */
   land: '#17150F',
   /** Coastline. The firmest line in the basemap; the ocean/land boundary is the one edge that must read. */
@@ -100,23 +111,70 @@ export const basemapColors = {
 } as const;
 
 /**
- * Bathymetric contour ramp, 200 m to 6000 m.
+ * Bathymetric depth tinting, 200 m to 6000 m. Seven steps, shallow to deep.
  *
- * Seven steps, shallow to deep, drifting from the warm neutral border colour toward a
- * desaturated slate. Chroma stays under ~0.02 OKLCH the whole way - the ramp is legible
- * as depth structure while staying categorically distinct from a haline sample.
- * Deliberately DARKENING with depth, matching the convention that deeper water is
- * heavier ink, and keeping the abyssal plain from competing with the point cloud.
+ * These are now FILL colours as well as stroke colours - see `bathymetryFill.ts`. That
+ * changes what the ramp has to do. Previously it tinted 0.7 px lines over a near-black
+ * plane and its range was invisible; now it paints the area of the ocean, and it is the
+ * main source of tonal structure in the frame.
+ *
+ * Still DARKENING with depth. That is the chart convention - deeper water carries
+ * heavier ink - and reversing it would read as wrong to anyone who has seen a real
+ * chart. What changed is the FLOOR: the old ramp bottomed out at #161616 (luminance 22)
+ * over a #090A0C plane, so the abyssal plain was designed to be "the quietest thing in
+ * the frame". This dataset sits entirely over abyssal plain, so the quietest thing in
+ * the frame was the whole frame. The ramp is lifted and its deep end stretched, because
+ * that is where this dataset lives.
+ *
+ * The hue bends warm-to-cool with depth. Shallow water keeps the warm neutral of the
+ * chart room; deep water takes a desaturated slate. This amends DESIGN.md's "the ocean
+ * is not blue" rule (see ADR 0007) and the amendment is bounded: per-step chroma peaks
+ * at 11/255 against a haline low-end sample of [41,24,107], which has chroma 83. A
+ * basemap pixel cannot be confused for a measurement.
+ *
+ * Measured relative luminance (0.2126R + 0.7152G + 0.0722B), shelf included:
+ *
+ *     shelf   70.2      3000 m  44.9
+ *      200 m  62.3      4000 m  39.9   <- dominant band in the demo view
+ *     1000 m  56.1      5000 m  34.8   <- western part of the demo view
+ *     2000 m  50.1      6000 m  29.7
  */
 export const bathymetryRamp: readonly { depth: number; color: string }[] = [
-  { depth: 200, color: '#3A362F' },
-  { depth: 1000, color: '#332F2A' },
-  { depth: 2000, color: '#2C2926' },
-  { depth: 3000, color: '#262422' },
-  { depth: 4000, color: '#201F1E' },
-  { depth: 5000, color: '#1B1A1A' },
-  { depth: 6000, color: '#161616' },
+  { depth: 200, color: '#423E37' },
+  { depth: 1000, color: '#3A3833' },
+  { depth: 2000, color: '#333230' },
+  { depth: 3000, color: '#2C2D2E' },
+  { depth: 4000, color: '#26282C' },
+  { depth: 5000, color: '#202329' },
+  { depth: 6000, color: '#1A1E25' },
 ] as const;
+
+/**
+ * Basemap detail that is not a colour.
+ *
+ * `contourWidthPx` was 0.7 with a 0.5 px floor - sub-pixel, which is why 631 contour
+ * rings rendered as nothing. Widened so the line work reads as the "fine grey
+ * line-work" DESIGN.md describes.
+ *
+ * The relief values govern the NASA topo+bathymetry raster drawn under the `ocean`
+ * style. In the demo view the vector contours can only produce TWO tones - the frame
+ * sits inside the 4000 m ring with 5000 m to the west - so the per-pixel texture has to
+ * come from the raster. It is real geophysical data rather than an invented gradient,
+ * which is the whole difference between this and decoration.
+ *
+ * `reliefSaturation` is the important one. The raster's own mean chroma over the framed
+ * region is 22.2, far above the ceiling of 8 this work is held to, so most of the blue
+ * is discarded in the shader and the cool cast is re-introduced through the ramp above -
+ * deliberately, so one place governs the hue.
+ */
+export const basemapDetail = {
+  contourWidthPx: 1.2,
+  contourMinPx: 0.9,
+  /** 0 = fully desaturated, 1 = the raster's own colour. */
+  reliefSaturation: 0.22,
+  /** Kept low: this is ground texture, never a picture. */
+  reliefOpacity: 0.38,
+} as const;
 
 export const basemapRgb = {
   ocean: hexToRgb(basemapColors.ocean),
@@ -173,7 +231,7 @@ export const canvasAtmosphere = {
   /** Corner falloff, 0-1 at the extreme corner. */
   vignetteStrength: 0.32,
   /** Measurements composite additively, so density reads as luminance. */
-  additiveBlending: true,
+  additiveBlending: false,
   /**
    * Per-point alpha with NORMAL blending. Near-opaque: one point, one colour.
    */
