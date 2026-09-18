@@ -1,45 +1,25 @@
-/* Font import must precede every other rule, including Tailwind's, or the browser
-   drops it per the CSS spec. */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&family=Archivo+Narrow:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+/* @import rules must precede every other rule, including Tailwind's, or the browser
+   drops them per the CSS spec.
+
+   fonts.generated.css  — self-hosted Archivo / Archivo Narrow / JetBrains Mono.
+                          Was a runtime fetch from fonts.googleapis.com; see
+                          scripts/fetch-fonts.mjs for why that was a risk to the recording.
+   theme.generated.css  — the @theme block and the semantic utility layer, derived from
+                          design/tokens.ts by scripts/build-theme.mjs. The palette used
+                          to be hand-duplicated here; it no longer is. Do not add a
+                          colour, type size or spacing value to this file. */
+@import './fonts.generated.css';
 @import 'tailwindcss';
+@import './theme.generated.css';
 
 /*
- * Chart Room theme. Values mirror design/tokens.ts, which mirrors DESIGN.md.
- * DESIGN.md is authoritative; if these disagree, DESIGN.md wins.
+ * Chart Room theme, structural rules only.
  *
- * Fonts are loaded from Google Fonts with real fallbacks. Archivo and Archivo Narrow
- * are SIL OFL. Commit Mono is not on Google Fonts, so JetBrains Mono (SIL OFL) is the
- * shipped mono - DESIGN.md names it as the sanctioned drop-in and the system is
- * unaffected by the substitution.
+ * DESIGN.md is authoritative, design/tokens.ts mirrors it, and theme.generated.css is
+ * derived from tokens.ts. What remains here is the browser-level chrome that has no
+ * token behind it: document defaults, focus, selection, scrollbars and the two native
+ * form controls the platform will not style from a class.
  */
-
-@theme {
-  --color-surface: #0d0c0a;
-  --color-neutral: #191714;
-  --color-raised: #26231f;
-  --color-border: #36322e;
-  --color-secondary: #97918a;
-  --color-onsurface: #dbd6d1;
-  --color-primary: #ede9e5;
-  --color-tertiary: #da55a1;
-  --color-tertiary-strong: #f077b1;
-  --color-error: #e46870;
-  --color-warning: #d89f45;
-
-  /* Boundary materials. Glass is the ONLY translucency in the system and it exists
-     only over the canvas - never over another panel. hud-edge is the lit chamfer
-     where the case meets the window, and it is the one edge brighter than Graphite. */
-  --color-glass: #1f1c18;
-  --color-hud-edge: #5e564b;
-
-  --font-sans: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
-  --font-condensed: 'Archivo Narrow', 'Archivo', 'Arial Narrow', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Commit Mono', 'SF Mono', Menlo, monospace;
-
-  --radius-none: 0px;
-  --radius-sm: 2px;
-  --radius-md: 4px;
-}
 
 html,
 body {
@@ -47,33 +27,13 @@ body {
   background: var(--color-surface);
   color: var(--color-onsurface);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--text-body-md);
+  line-height: var(--text-body-md--line-height);
   overscroll-behavior: none;
 }
 
 * {
   box-sizing: border-box;
-}
-
-/* Uppercase set at default tracking looks broken rather than emphatic. */
-.label-caps {
-  font-family: var(--font-condensed);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-feature-settings: 'case' 1;
-  color: var(--color-secondary);
-}
-
-/* Monospace with tabular figures and a slashed zero. Load-bearing, not stylistic:
-   a column of latitudes must align on the decimal, and O-versus-0 in a WMO id
-   costs a scientist real time. */
-.data {
-  font-family: var(--font-mono);
-  font-feature-settings: 'tnum' 1, 'zero' 1;
-  font-variant-numeric: tabular-nums slashed-zero;
 }
 
 .hairline {
@@ -106,40 +66,78 @@ body {
   background: var(--color-secondary);
 }
 
+/*
+ * Range inputs. Two of them carry real weight — depth exaggeration, and the time
+ * cursor that is the entire fourth dimension of the product — and the platform will
+ * not style either from a utility class, so they are specified here.
+ *
+ * The track was a 2px hairline. At that weight the thumb reads as detached from
+ * anything, and the control that carries the 4D claim was the thinnest element on
+ * screen. 4px is still an instrument hairline rather than a consumer slider, but it
+ * is a track the thumb visibly sits IN.
+ */
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
-  height: 2px;
+  height: 4px;
+  border-radius: var(--radius-sm);
   background: var(--color-border);
   outline: none;
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 11px;
-  height: 11px;
-  border-radius: 9999px;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-full);
   background: var(--color-tertiary);
+  /* A ring in the page ground, so the thumb reads against both the track and a lit
+     cluster behind it rather than dissolving into either. */
+  box-shadow: 0 0 0 3px var(--color-surface);
   cursor: pointer;
 }
 input[type='range']::-moz-range-thumb {
-  width: 11px;
-  height: 11px;
+  width: 13px;
+  height: 13px;
   border: none;
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
   background: var(--color-tertiary);
+  box-shadow: 0 0 0 3px var(--color-surface);
   cursor: pointer;
+}
+
+/* The native select is the only unstyled-OS element left in the interface and it shows
+   the platform's own dropdown chrome on a recording. The list itself is still the OS
+   popup — that is the trade for keeping a real <select> and its keyboard behaviour —
+   but the closed state is ours. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-secondary) 50%),
+    linear-gradient(135deg, var(--color-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 11px) calc(50% + 1px),
+    calc(100% - 7px) calc(50% + 1px);
+  background-size:
+    4px 4px,
+    4px 4px;
+  background-repeat: no-repeat;
+}
+select option {
+  background: var(--color-raised);
+  color: var(--color-primary);
 }
 
 /* State changes: 120ms, colour only. Explanatory motion (240-520ms, transform and
    opacity) is defined per-feature, never globally - see DESIGN.md "Motion". */
 button,
 a,
-input {
+input,
+select {
   transition:
-    background-color 120ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 120ms cubic-bezier(0.2, 0, 0, 1),
-    color 120ms cubic-bezier(0.2, 0, 0, 1);
+    background-color var(--duration-fast) var(--ease-chart),
+    border-color var(--duration-fast) var(--ease-chart),
+    color var(--duration-fast) var(--ease-chart);
 }
 
 /*

@@ -1,0 +1,143 @@
+/**
+ * Self-host the three Chart Room type families.
+ *
+ * Why this exists: globals.css used to `@import` fonts.googleapis.com at runtime. The
+ * deliverable for this work is a recorded video, and a slow or absent network on the
+ * capture machine silently falls back to Helvetica/Arial/Menlo — no error, no failing
+ * check, and the entire typographic identity of the shot is gone. DESIGN.md already
+ * said "self-host all three"; this makes that true. It also removes the last runtime
+ * network dependency from a build that is otherwise fully offline (see ADR 0004).
+ *
+ * Run once, commit the output:
+ *   node scripts/fetch-fonts.mjs
+ *
+ * Writes public/fonts/*.woff2 and app/fonts.generated.css. Both are committed, so the
+ * build never needs this script again — it is here to record provenance and to make a
+ * font update a one-command operation rather than an archaeology exercise.
+ *
+ * Licensing: Archivo, Archivo Narrow and JetBrains Mono are all SIL Open Font License
+ * 1.1, which permits redistribution. public/fonts/OFL.txt records that.
+ *
+ * Subsetting: `latin` only. Google splits each family by unicode-range, and the latin
+ * block (U+0000-00FF plus U+2000-206F) already covers everything the interface sets —
+ * the degree sign, the middot, the em dash, the ellipsis, the multiplication sign and
+ * the arrow used in the time-range chip. Shipping latin-ext, vietnamese, greek and
+ * cyrillic would triple the committed bytes for glyphs no string in this app contains.
+ */
+
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const FONT_DIR = join(ROOT, 'public', 'fonts');
+const OUT_CSS = join(ROOT, 'app', 'fonts.generated.css');
+
+const API = 'https://fonts.googleapis.com/css2';
+const FAMILIES = ['Archivo:wght@400;700', 'Archivo+Narrow:wght@400;700', 'JetBrains+Mono:wght@400;700'];
+
+/**
+ * Google serves woff2 only to browsers that advertise support; with the default Node
+ * user agent it returns the truetype stylesheet instead, which is ~4x the bytes.
+ */
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/** `/* latin *\/` comment, then the @font-face block that comment introduces. */
+function parseLatinFaces(css) {
+  const faces = [];
+  const blocks = css.split('/*').slice(1);
+  for (const block of blocks) {
+    const [subset, body] = [block.slice(0, block.indexOf('*/')).trim(), block];
+    if (subset !== 'latin') continue;
+    const family = /font-family:\s*'([^']+)'/.exec(body)?.[1];
+    const weight = /font-weight:\s*(\d+)/.exec(body)?.[1];
+    const url = /url\((https:\/\/[^)]+\.woff2)\)/.exec(body)?.[1];
+    if (family && weight && url) faces.push({ family, weight, url });
+  }
+  return faces;
+}
+
+function fileNameFor({ family, weight }) {
+  return `${family.toLowerCase().replace(/\s+/g, '-')}-${weight}.woff2`;
+}
+
+async function main() {
+  const url = `${API}?${FAMILIES.map((f) => `family=${f}`).join('&')}&display=block`;
+  const response = await fetch(url, { headers: { 'User-Agent': UA } });
+  if (!response.ok) throw new Error(`Google Fonts returned ${response.status}`);
+  const faces = parseLatinFaces(await response.text());
+  if (faces.length === 0) throw new Error('No latin @font-face blocks found — API shape changed?');
+
+  await mkdir(FONT_DIR, { recursive: true });
+
+  /**
+   * Archivo and Archivo Narrow are variable fonts: 400 and 700 resolve to the SAME
+   * woff2, with the weight axis instanced by the browser. Downloading per (family,
+   * weight) would write the identical bytes twice under two names, so remote URLs are
+   * deduped and both @font-face rules point at one file.
+   */
+  const byUrl = new Map();
+  let bytes = 0;
+
+  for (const face of faces) {
+    if (!byUrl.has(face.url)) {
+      const file = fileNameFor(face);
+      const data = Buffer.from(await (await fetch(face.url)).arrayBuffer());
+      await writeFile(join(FONT_DIR, file), data);
+      byUrl.set(face.url, file);
+      bytes += data.length;
+      console.log(`  ${file.padEnd(28)} ${(data.length / 1024).toFixed(1)} KB`);
+    }
+    face.file = byUrl.get(face.url);
+  }
+
+  const rules = faces
+    .map(
+      (face) => `@font-face {
+  font-family: '${face.family}';
+  font-style: normal;
+  font-weight: ${face.weight};
+  /* block, not swap: a flash of Arial in the first frames of the recording is worse
+     than a few hundred milliseconds of nothing. The files are local, so the block
+     period is a disk read. */
+  font-display: block;
+  src: url('/fonts/${face.file}') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}`,
+    )
+    .join('\n\n');
+
+  await writeFile(
+    OUT_CSS,
+    `/* GENERATED by scripts/fetch-fonts.mjs — do not edit.
+   Self-hosted latin subsets of Archivo, Archivo Narrow and JetBrains Mono (SIL OFL 1.1).
+   Regenerate with: node scripts/fetch-fonts.mjs */
+
+${rules}
+`,
+    'utf8',
+  );
+
+  await writeFile(
+    join(FONT_DIR, 'OFL.txt'),
+    `Archivo, Archivo Narrow and JetBrains Mono are licensed under the
+SIL Open Font License, Version 1.1, which permits redistribution.
+
+  Archivo        Omnibus-Type       https://github.com/Omnibus-Type/Archivo
+  Archivo Narrow Omnibus-Type       https://github.com/Omnibus-Type/ArchivoNarrow
+  JetBrains Mono JetBrains          https://github.com/JetBrains/JetBrainsMono
+
+Full licence text: https://openfontlicense.org/open-font-license-official-text/
+`,
+    'utf8',
+  );
+
+  console.log(
+    `\n${byUrl.size} files, ${(bytes / 1024).toFixed(1)} KB total → public/fonts/\n` +
+      `${faces.length} @font-face rules → app/fonts.generated.css`,
+  );
+}
+
+await main();

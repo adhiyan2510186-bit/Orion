@@ -279,6 +279,12 @@ export const layout = {
   inspectorWidth: 380,
   topBarHeight: 52,
   timelineHeight: 64,
+  /**
+   * Depth-profile chart. Tall enough that a thermocline is a visible inflection rather
+   * than a kink, short enough that the chart and its readout grid both clear the fold
+   * of a 1080p capture inside a 380px column.
+   */
+  profileChartHeight: 300,
   /** Below this the inspector becomes an overlay rather than compressing. */
   overlayBreakpoint: 1100,
 } as const;
