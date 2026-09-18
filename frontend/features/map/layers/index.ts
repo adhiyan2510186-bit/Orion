@@ -12,7 +12,7 @@ import {
   type ScatterplotLayerProps,
 } from '@deck.gl/layers';
 import type { ArgoFloatPoint } from '@/types/argo';
-import { rgb } from '@/design/tokens';
+import { canvasAtmosphere, ease, pointEntry, rgb } from '@/design/tokens';
 import {
   type LayerContext,
   depthToZ,
@@ -93,13 +93,81 @@ export const pointCloud3d = registerLayer({
           ? ((d as unknown as Record<string, number | null>)[ctx.colorBy.key] ?? null)
           : null;
         const [r, g, b] = ctx.colorScale(value);
-        return [r, g, b, 210];
+        // Alpha is an OPACITY under normal blending and a GAIN under additive, so the
+        // two cannot share a value - see the tokens' own note.
+        return [
+          r,
+          g,
+          b,
+          canvasAtmosphere.additiveBlending
+            ? canvasAtmosphere.additiveAlpha
+            : canvasAtmosphere.pointAlpha,
+        ];
       },
       extensions: [TIME_FILTER],
       getFilterValue: (d) => epoch(d.timestamp),
       filterRange: range,
       filterSoftRange: [range[0] + (range[1] - range[0]) * 0.55, range[1]],
       filterTransformColor: true,
+
+      /*
+       * Additive blending. DESIGN.md "Canvas": density IS luminance, so overlapping
+       * measurements accumulate toward white and a well-surveyed patch burns while a
+       * sparse edge stays dim. It converts occlusion from a problem into information.
+       *
+       * luma.gl v9 spelling. The v8 names (`blendFunc`, `blendEquation` arrays) are
+       * gone, and a wrong key here produces NO error and NO effect - the same trap
+       * basemapShared.ts already carries a scar for. Verified by lit-pixel delta
+       * against this layer with `blend: false`, not by eye.
+       *
+       * `depthWriteEnabled: false` is required, not incidental. With depth writes on,
+       * the first fragment at a pixel wins and everything behind it is rejected, so
+       * nothing accumulates and the blend mode does nothing visible. Additive is
+       * order-independent (addition commutes), so dropping the write costs no
+       * correctness here - unlike the basemap's `depthCompare: 'always'`, which is a
+       * different escape hatch for a different problem and is NOT copied (ADR 0004).
+       * The depth TEST stays on, so the cloud still sorts against opaque geometry.
+       */
+      parameters: canvasAtmosphere.additiveBlending
+        ? {
+            blend: true,
+            blendColorOperation: 'add',
+            blendColorSrcFactor: 'src-alpha',
+            blendColorDstFactor: 'one',
+            blendAlphaOperation: 'add',
+            blendAlphaSrcFactor: 'one',
+            blendAlphaDstFactor: 'one',
+            depthWriteEnabled: false,
+          }
+        : {},
+
+      /*
+       * Entry. A query that returns in 300 ms with no transition gives the user no
+       * evidence that anything happened - DESIGN.md's third sanctioned case.
+       *
+       * Two beats: colour resolves in 240 ms, size settles over 520 ms, so the cloud
+       * reads as coming into focus rather than inflating. `enter` supplies the value a
+       * NEW point animates FROM, which is what makes this an arrival rather than a
+       * crossfade between two results.
+       *
+       * NOT per-point staggered, and deliberately so. deck.gl attribute transitions
+       * carry one duration per attribute, and DESIGN.md caps staggering at six items -
+       * a 60,000-point stagger is outside that rule by four orders of magnitude and
+       * would read as a queue the user is waiting on.
+       */
+      transitions: {
+        getRadius: {
+          duration: pointEntry.scaleMs,
+          easing: ease,
+          enter: () => [0],
+        },
+        getFillColor: {
+          duration: pointEntry.fadeMs,
+          easing: ease,
+          enter: (toValue: number[]) => [toValue[0], toValue[1], toValue[2], 0],
+        },
+      },
+
       onClick: (info) => {
         if (info.object) ctx.onSelect(info.object);
         return true;

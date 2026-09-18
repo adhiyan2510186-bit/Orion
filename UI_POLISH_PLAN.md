@@ -717,3 +717,118 @@ on, so this is live.
   not be able to break a measurement.
 - `scripts/shoot.mjs` waits for the context cloud before shooting, since it lands seconds after
   the answer does.
+
+---
+
+## 8. P3 as built — motion
+
+P2 (the parse ribbon) was skipped on instruction; this is P3's motion work only. Three changes,
+all inside the canvas, none touching chrome.
+
+### 8.1 Two-phase arrival camera
+
+`useFitCamera` now snaps to the fitted framing **looking straight down**, then eases the pitch
+to `camera.restPitchDeg` (35°) over `camera.arrivalMs`. Phase 1 is a cut, not a move — there is
+nothing to preserve continuity with, since the previous framing answered a different question.
+Phase 2 is the explanatory half: a top-down frame reads as a *map*, an oblique one reads as a
+*volume*, so the rotation is what says the third axis exists.
+
+Phase 2 is scheduled on a frame boundary rather than in the same commit, because deck needs to
+have applied the snap before it has something to transition *from*. Both phases run through
+deck.gl's `transitionDuration` + `LinearInterpolator`, not a manual rAF loop.
+
+Reduced motion never sees the top-down frame at all — it lands directly on 35°. Showing the plan
+view and simply not rotating out of it would leave the user looking at the one framing that
+hides the third axis, which is worse than no animation.
+
+> **Divergence from `DESIGN.md`, recorded rather than silent.** Explanatory motion is specified
+> as **240–520 ms**; the arrival is **2500 ms**, on the build owner's explicit instruction. The
+> band's argument is that "a second viewing becomes a wait", which holds hard for chrome and
+> much more weakly for the canvas — the governing thesis exempts the canvas from the
+> instrument's austerity in as many words ("the camera moves"), and this flight occupies latency
+> that already exists while the context cloud is still loading. The value lives in
+> `tokens.camera.arrivalMs` with the argument attached.
+
+### 8.2 Point entry — two beats, not a per-point stagger
+
+Real deck.gl attribute transitions on `point-cloud-3d`: `getFillColor` fades from alpha 0 over
+240 ms, `getRadius` grows from 0 over 520 ms, both on the token easing. `enter` supplies the
+value a *new* point animates from, which is what makes this an arrival rather than a crossfade
+between two results. Both stay inside the explanatory band.
+
+**It is not per-point staggered, and that is deliberate.** deck.gl attribute transitions carry
+one duration per attribute — there is no per-index delay — and `DESIGN.md` caps staggering at
+**six items**, past which it "stops reading as 'these arrived together' and starts reading as a
+queue". A 60,000-point stagger is outside that rule by four orders of magnitude. The two-beat,
+layer-wide entry is the design-system-compliant reading. If true per-point stagger is wanted
+later, §3.8's two routes still stand (a second `DataFilterExtension` dimension at `filterSize: 2`,
+which re-uploads every attribute, or sweeping `filterRange` chronologically on arrival).
+
+### 8.3 Additive blending — it works, and it costs the colormap
+
+luma.gl v9 spelling, gated on the existing `canvasAtmosphere.additiveBlending` token.
+`depthWriteEnabled: false` is required rather than incidental: with depth writes on, the first
+fragment at a pixel wins and nothing accumulates, so the blend mode would do nothing visible.
+Additive is order-independent, so dropping the write costs no correctness. The basemap's
+`depthCompare: 'always'` (ADR 0004) is **not** copied and **not** touched; registration order is
+unchanged, so draw order is unchanged.
+
+Confirmed by lit-pixel delta rather than by eye, exactly as §3.8 demands — a wrong v9 key
+produces no error and no effect:
+
+```
+additive OFF (control)   977 bright px   max pixel sum 660
+additive ON            1,446 bright px   max pixel sum 765  (saturated white)
+```
+
+**But it breaks a promise `DESIGN.md` makes, and the reason is structural.** The spec says
+additive "reads accurately at the sparse end and approximately in the core". Measured colormap
+hue retention across lit pixels:
+
+```
+no additive (alpha 210)   76.4%   <- control
+additive @ 130            12.0%
+additive @  90            22.9%
+additive @  60            46.9%   <- best achievable, now the default
+additive @  40            22.6%   (points so dim the lit pixels are basemap)
+```
+
+There is no sparse end in this data. A profile is one lat/lon, and the matched measurements all
+sit at 3–10 m, so ~3.5 of them land on nearly the same screen position — the sparsest visible
+unit is *already* a stack, and it saturates. This is the same structural fact that made the
+P1.5 context cloud render as vertical combs rather than a haze: **ARGO points are co-located
+stacks, not a distributed field.**
+
+Shipped at the measured optimum with the trade recorded. `additiveBlending: false` reverts it in
+one line.
+
+### 8.4 Cost — and a control that changed the answer
+
+`PERF_GPU=1`, demo query, context withheld so P1.5's known cost is not counted twice:
+
+```
+P1.5 baseline (stashed, measured in THIS session)   33.3 ms   30.0 fps
+P1.5 + P3                                          33.3 ms   30.0 fps
+P1.5 + P3, additive disabled                       33.3 ms   30.0 fps
+```
+
+**P3 adds no measurable steady-state frame time.** The camera flight and the entry transitions
+are one-shot and have finished long before the harness settles and samples; additive blending
+costs nothing detectable at this point count.
+
+**The absolute number is not usable from this run, and saying otherwise would repeat ADR 0003's
+mistake.** The same context-off control measured **16.9 ms / 59.2 fps** earlier the same day and
+**33.3 ms / 30.0 fps** now, with identical code — because the machine's own Chrome (13
+processes, 1.1 GB, holding a GPU process and video capture) is contending for the same Intel
+UHD 620. The first instinct was to report "P3 halved the frame rate"; stashing P3 and
+re-measuring in-session showed the baseline had moved, not the code.
+
+So: **whether 60 fps still holds cannot be answered from this run.** It needs a re-measure on an
+otherwise idle machine, which is also the right condition for the recording itself.
+
+### 8.5 Gates
+
+`npm run verify` is **16/18** — the same two basemap floors from P1.5 (§7.3), with **no new
+failures**. The canvas checks specifically pass: 102 colour buckets, lit-pixel floor met, picking
+still works through the overlays, zero console errors. The entry animation was the real risk
+here, since the pixel scan runs immediately after the summary text appears, and it clears.

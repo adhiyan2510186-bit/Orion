@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { LinearInterpolator, OrbitView, type OrbitViewState } from '@deck.gl/core';
 import { CanvasAtmosphere } from '@/components/ui/Surface';
-import { ease } from '@/design/tokens';
+import { camera, ease } from '@/design/tokens';
 import { useLayerBuilder } from '../hooks/useLayerBuilder';
 import { useFitCamera } from '../hooks/useFitCamera';
 import { useQueryStore, useSelectionStore } from '@/lib/state/stores';
@@ -37,7 +37,9 @@ const ORBIT_INTERPOLATOR = new LinearInterpolator({
 const INITIAL_VIEW: OrbitViewState = {
   target: [-145, 0, 0],
   zoom: 3.4,
-  rotationX: 38,
+  // The resting pitch, from tokens. Only ever seen before the first query lands; every
+  // arrival after that starts top-down and eases back to this value.
+  rotationX: camera.restPitchDeg,
   rotationOrbit: 12,
 };
 

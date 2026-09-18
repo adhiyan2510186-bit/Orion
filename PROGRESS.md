@@ -6,11 +6,11 @@ anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEME
 
 **Status:** P1–P7 + P9 complete. Full vertical slice runs end to end on real data.
 Now in a **frontend-only UI polish pass** for a recorded demo — plan and phase list in
-`UI_POLISH_PLAN.md`. **P0, P1 and P1.5 done**, but P1.5 is on `wip/p15-framing`, NOT on
-`main`, because it leaves two gates open — see "Open questions" below. **P2 next** (the
-parse ribbon — word-level highlighting via a frontend phrase gazetteer, §4.1 decision 4,
-with the three containment rules in §5.3), once those two are settled.
-**Last updated:** 2026-09-18, after UI polish P1.5 (see `UI_POLISH_PLAN.md` §7)
+`UI_POLISH_PLAN.md`. **P0, P1, P1.5 and P3 done**; all on `wip/p15-framing`, NOT on
+`main`, because P1.5 left two gates open — see "Open questions". **P2 (the parse ribbon)
+was skipped on instruction** and is the remaining polish phase, along with what is left
+of P3 (scripted demo camera; §3.7's `viewState` hoist is still not needed).
+**Last updated:** 2026-09-18, after UI polish P3 (see `UI_POLISH_PLAN.md` §8)
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -40,6 +40,8 @@ Do not reopen these. They were decided with the user and are settled.
 | Theme direction | **Austere instrument, cinematic canvas** | Chrome stays flat, warm, matte; glow/grain/vignette/additive belong inside the WebGL viewport only. Glass is permitted at the boundary alone. The no-blue-chrome rule survives. |
 | Motion | **Explanatory only** | Replaced the "don't animate the interface" rule. Motion must explain a causal relationship; decoration does not ship. `transform`/`opacity` only. See ADR 0005. |
 | Context cloud | **Draw what did not match** | Showing only survivors renders a filter as an absence. A registered `context-cloud` layer draws the rejected measurements dim and neutral beneath the results, from a second relaxed query. Default on. See ADR 0006 — including a measured frame cost that is still open. |
+| Arrival camera | **Top-down, then ease to 35° over 2.5 s** | A plan view reads as a map, an oblique one as a volume; the rotation is what says the third axis exists. **Diverges from `DESIGN.md`'s 240–520 ms band** on the build owner's instruction — the band protects chrome, and the canvas is explicitly exempt from the instrument's austerity. Value and argument in `tokens.camera`. |
+| Additive blending | **On, at a measured gain** | Density is luminance, per `DESIGN.md`. Confirmed working by lit-pixel delta (max pixel sum 660 → 765). But it costs colormap hue 76% → 47% even at its best gain, because ARGO points are co-located stacks rather than a distributed field — there is no sparse end for the spec's promise to hold at. `additiveBlending: false` reverts it. See `UI_POLISH_PLAN.md` §8.3. |
 
 ## Environment (verified 2026-09-09)
 
@@ -177,11 +179,15 @@ passes** — never mark one done on assumption.
 
 0. **Settle the two open gates from P1.5** (see "Open questions"). `wip/p15-framing`
    cannot merge to `main` until then.
-1. **UI polish P2 — the parse ribbon.** `UI_POLISH_PLAN.md` §2 P2 and §5.3. Needs
-   `features/search/index.ts` (barrel) and `features/search/lib/attributeSpec.ts`.
-2. **UI polish P3 — the rest of it.** The arrival camera was pulled forward into P1.5;
-   what remains is additive blending, staggered point entry and the scripted demo
-   camera, plus hoisting `viewState` out of `MapCanvas` into the view store (§3.7).
+1. **Re-measure perf on an idle machine.** P3's A/B is flat, but the absolute frame
+   rate could not be established — the machine's own Chrome was holding the GPU, and
+   the same control read 59.2 fps earlier in the day and 30.0 fps later with identical
+   code. `UI_POLISH_PLAN.md` §8.4. This is also the right condition for the recording.
+2. **UI polish P2 — the parse ribbon.** Skipped on instruction, still outstanding.
+   `UI_POLISH_PLAN.md` §2 P2 and §5.3. Needs `features/search/index.ts` (barrel) and
+   `features/search/lib/attributeSpec.ts`.
+3. **P3 leftovers:** the scripted demo camera. Additive blending, point entry and the
+   arrival flight are done; `viewState` still does not need hoisting (§3.7).
 3. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
    but the engine ignores them; `list_floats` ignores its spec argument.
 4. Optional: a light theme, deliberately skipped this pass.

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { OrbitViewState } from '@deck.gl/core';
-import { motion, prefersReducedMotion } from '@/design/tokens';
+import { camera, prefersReducedMotion } from '@/design/tokens';
 import { useQueryStore } from '@/lib/state/stores';
 import type { ArgoFloatPoint } from '@/types/argo';
 
@@ -124,21 +124,39 @@ export function fitViewState(
 }
 
 /**
- * Watches the query result and produces a camera that frames it.
+ * Watches the query result and produces the arrival camera.
  *
- * Fires on first load and on every new query, because a result the camera does not
- * show is not a result the viewer has seen. It does NOT fire when the user has orbited
- * the camera themselves and then only the time cursor moves - it keys on the response
- * object identity, which changes exactly once per query.
+ * Fires on first load and on every new query, because a result the camera does not show
+ * is not a result the viewer has seen. It does NOT fire when the user has orbited the
+ * camera themselves and then only the time cursor moves - it keys on the response object
+ * identity, which changes exactly once per query.
+ *
+ * The arrival is two phases, and the first one is a CUT, not a move:
+ *
+ *   1. Snap to the fitted target and zoom, looking straight down. No transition - there
+ *      is nothing to preserve continuity WITH, since the previous framing belonged to a
+ *      different question.
+ *   2. Ease the pitch down to `camera.restPitchDeg` over `camera.arrivalMs`. This is the
+ *      explanatory half: a top-down frame reads as a map, an oblique one reads as a
+ *      volume, and the rotation is what says the third axis is there.
+ *
+ * Phase 2 is scheduled on a frame boundary rather than in the same commit, because deck
+ * needs to have applied the snap before it has something to transition FROM. Setting
+ * both in one render would collapse the two into a single interpolation from wherever
+ * the camera happened to be.
  */
 export function useFitCamera(
   base: OrbitViewState,
   size: { width: number; height: number } | null,
 ): { view: OrbitViewState; transitionMs: number } {
   const response = useQueryStore((s) => s.response);
-  const [view, setView] = useState<OrbitViewState>(base);
+  const [view, setView] = useState<OrbitViewState>({
+    ...base,
+    rotationX: camera.restPitchDeg,
+  });
   const [transitionMs, setTransitionMs] = useState(0);
   const fittedFor = useRef<object | null>(null);
+  const pending = useRef<number | null>(null);
 
   useEffect(() => {
     if (!response || !size || size.width === 0) return;
@@ -150,9 +168,38 @@ export function useFitCamera(
     if (!bounds) return;
     fittedFor.current = response;
 
-    setTransitionMs(prefersReducedMotion() ? 0 : motion.explainSlow);
-    setView(fitViewState(bounds, size.width, size.height, base));
+    const framed = fitViewState(bounds, size.width, size.height, base);
+
+    /*
+     * Reduced motion resolves to the FINAL state, never a half-played one - so it never
+     * sees the top-down frame at all. Showing the plan view and simply not rotating out
+     * of it would leave the user looking at the one framing that hides the third axis,
+     * which is worse than no animation.
+     */
+    if (prefersReducedMotion()) {
+      setTransitionMs(0);
+      setView({ ...framed, rotationX: camera.restPitchDeg });
+      return;
+    }
+
+    setTransitionMs(0);
+    setView({ ...framed, rotationX: camera.arrivalPitchDeg });
+
+    if (pending.current !== null) cancelAnimationFrame(pending.current);
+    pending.current = requestAnimationFrame(() => {
+      pending.current = requestAnimationFrame(() => {
+        setTransitionMs(camera.arrivalMs);
+        setView({ ...framed, rotationX: camera.restPitchDeg });
+      });
+    });
   }, [response, size, base]);
+
+  useEffect(
+    () => () => {
+      if (pending.current !== null) cancelAnimationFrame(pending.current);
+    },
+    [],
+  );
 
   return { view, transitionMs };
 }

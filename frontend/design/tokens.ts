@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Chart Room design tokens.
  *
  * Derived from DESIGN.md, which is authoritative. This file is the ONLY origin of a
@@ -174,6 +174,39 @@ export const canvasAtmosphere = {
   vignetteStrength: 0.32,
   /** Measurements composite additively, so density reads as luminance. */
   additiveBlending: true,
+  /**
+   * Per-point alpha with NORMAL blending. Near-opaque: one point, one colour.
+   */
+  pointAlpha: 210,
+  /**
+   * Per-point alpha under ADDITIVE blending, where alpha is a gain rather than an
+   * opacity. This is much lower and the reason is a promise DESIGN.md makes: additive
+   * "reads accurately at the sparse end and approximately in the core".
+   *
+   * At the opaque 210 that promise breaks immediately - a single hot measurement
+   * contributes 82% of a thermal colour that is already near-white, so isolated points
+   * blow out and the colormap stops meaning anything anywhere. Measured: every matched
+   * point rendered pure white, against warm cream in the non-additive control.
+   *
+   * 60 is the MEASURED optimum, not a guess. Colormap hue retained across lit pixels,
+   * demo query, 1-year trail:
+   *
+   *     no additive (alpha 210)   76.4%   <- the control
+   *     additive @ 130            12.0%
+   *     additive @  90            22.9%
+   *     additive @  60            46.9%   <- best achievable
+   *     additive @  40            22.6%   (points so dim the lit pixels are basemap)
+   *
+   * Read that honestly: additive costs ~30 points of colormap legibility here even at
+   * its best, and DESIGN.md's promise that it "reads accurately at the sparse end" does
+   * NOT hold for this data. The reason is structural rather than a tuning failure -
+   * ~3.5 matched measurements sit at nearly the same screen position per profile,
+   * because a profile is one lat/lon and these all sit at 3-10 m. There is no sparse
+   * end: the sparsest visible unit is already a stack.
+   *
+   * `additiveBlending: false` above reverts the whole effect in one line.
+   */
+  additiveAlpha: 60,
 } as const;
 
 /**
@@ -332,6 +365,55 @@ export function ease(t: number): number {
   }
   return curve(y1, y2, Math.max(0, Math.min(1, u)));
 }
+
+/**
+ * The arrival camera. DESIGN.md "Motion" / "Continuity of viewpoint".
+ *
+ * Every arrival starts looking straight down and eases to an oblique angle. The move
+ * is explanatory in the sense DESIGN.md sanctions: a top-down frame reads as a MAP and
+ * an oblique one reads as a VOLUME, so the rotation is what tells the user the third
+ * axis exists at all. A static oblique frame states that; the rotation demonstrates it.
+ *
+ * `arrivalMs` DIVERGES from the 240-520 ms explanatory band, deliberately and on the
+ * build owner's instruction. The argument for the band is that "a second viewing
+ * becomes a wait", and it holds for chrome - a chip row that takes 2.5s to settle is
+ * unusable. It holds much more weakly for the canvas, which the governing thesis
+ * explicitly exempts from the instrument's austerity ("the camera moves"), and this
+ * flight occupies latency that already exists while the context cloud is still loading.
+ * It is recorded in UI_POLISH_PLAN.md rather than left to look like an oversight.
+ *
+ * Reduced motion lands on `restPitchDeg` instantly - never part-way down.
+ */
+export const camera = {
+  /** Straight down. Reads as a map: a plan view with no volume in it. */
+  arrivalPitchDeg: 90,
+  /** Resting pitch. Oblique enough that the water column has visible extent. */
+  restPitchDeg: 35,
+  /** See the divergence note above before changing this. */
+  arrivalMs: 2500,
+} as const;
+
+/**
+ * Entry of the measurements themselves.
+ *
+ * Two beats rather than one: colour arrives before size finishes, so the cloud reads as
+ * resolving into focus instead of inflating. Both stay inside the explanatory band,
+ * unlike the camera - these are attached to the data appearing, which is the case
+ * DESIGN.md describes as "state that would otherwise appear instantly and therefore
+ * invisibly", and that case is explicitly not allowed to ADD latency.
+ *
+ * On per-point stagger: DESIGN.md caps staggering at six items, beyond which it "stops
+ * reading as 'these arrived together' and starts reading as a queue". A 60,000-point
+ * stagger is outside that rule by four orders of magnitude, and deck.gl's attribute
+ * transitions carry one duration per attribute in any case. The two-beat, layer-wide
+ * entry is the design-system-compliant reading of "staggered" here.
+ */
+export const pointEntry = {
+  /** Alpha 0 -> full. The faster beat. */
+  fadeMs: 240,
+  /** Radius 0 -> full. The slower beat, so size settles last. */
+  scaleMs: 520,
+} as const;
 
 /**
  * Reduced motion is a real state, not a checkbox.
