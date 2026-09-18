@@ -15,8 +15,10 @@ import type { ArgoFloatPoint } from '@/types/argo';
  */
 export function useLayerBuilder() {
   const response = useQueryStore((s) => s.response);
+  const contextPoints = useQueryStore((s) => s.contextPoints);
   const { cursor, windowMs, enabled } = useTimeStore();
-  const { colorBy, depthExaggeration, showTrajectories, showGraticule, basemap } = useViewStore();
+  const { colorBy, depthExaggeration, showTrajectories, showGraticule, showContext, basemap } =
+    useViewStore();
   const { floatId, select, hover } = useSelectionStore();
   const { meta, variables } = useMeta();
 
@@ -33,6 +35,7 @@ export function useLayerBuilder() {
   const context: LayerContext = useMemo(
     () => ({
       points: response?.points ?? [],
+      contextPoints,
       trajectories: response?.trajectories ?? [],
       timeCursor: cursor,
       timeWindowMs: windowMs,
@@ -45,10 +48,12 @@ export function useLayerBuilder() {
       onHover: hover,
       showTrajectories,
       showGraticule,
+      showContext,
       basemap,
     }),
-    [response, cursor, windowMs, enabled, colorScale, descriptor, depthExaggeration,
-     floatId, select, hover, showTrajectories, showGraticule, basemap],
+    [response, contextPoints, cursor, windowMs, enabled, colorScale, descriptor,
+     depthExaggeration, floatId, select, hover, showTrajectories, showGraticule,
+     showContext, basemap],
   );
 
   const layers = useMemo(

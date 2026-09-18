@@ -52,12 +52,73 @@ await input.fill(QUERY);
 // Submit with Enter rather than clicking the button: the deck.gl canvas can overlap
 // the click target during a re-layout and swallow the event.
 await input.press('Enter');
-await page.waitForTimeout(14_000);
 
+/*
+ * Wait for the point count to STOP changing, rather than for a fixed interval.
+ *
+ * A fixed 14s wait used to be enough. It is not any more: this query returns 60,000
+ * points as a 21 MB response, and the context cloud fires a second request of similar
+ * size behind it. A run that sampled mid-flight reported `points 0` while still
+ * printing a perfectly good frame rate - a measurement that looks like a points-budget
+ * failure and is actually a stopwatch problem.
+ */
+async function settledPointCount(timeoutMs = 90_000) {
+  const started = Date.now();
+  let last = -1;
+  let stableFor = 0;
+  while (Date.now() - started < timeoutMs) {
+    await page.waitForTimeout(1000);
+    const now = await page.evaluate(() => {
+      const node = document.querySelector('[data-point-count]');
+      return node ? Number(node.getAttribute('data-point-count')) : 0;
+    });
+    stableFor = now === last ? stableFor + 1 : 0;
+    last = now;
+    if (last > 0 && stableFor >= 3) break;
+  }
+  return last;
+}
+await settledPointCount();
+
+/*
+ * And then for the context cloud, which lands several seconds after the matched result
+ * because it is a second request of similar size that the app deliberately does not
+ * await. Reading before it arrives reports "0 points" for a layer that is about to be
+ * drawn - and would silently measure the frame rate of the control while claiming to
+ * measure the layer.
+ */
+await page
+  .waitForSelector('text=/excluded, shown dim/', { timeout: 60_000 })
+  .catch(() => console.log('note: no context cloud for this query'));
+
+// Read the machine-readable attribute, not the rendered label. This used to scrape
+// innerText for "points rendered" and silently returned 0 the moment that label picked
+// up text-transform: uppercase - a styling change must not be able to break a
+// measurement, and a zero here would have been read as a points-budget failure.
 const rendered = await page.evaluate(() => {
-  const match = document.body.innerText.match(/([\d,]+) points rendered/);
+  const node = document.querySelector('[data-point-count]');
+  return node ? Number(node.getAttribute('data-point-count')) : 0;
+});
+
+/*
+ * Context cloud on or off. The CONTROL for the context layer, in exactly the shape
+ * PERF_BASEMAP established for the basemap:
+ *
+ *   PERF_CONTEXT=off PERF_GPU=1 npm run perf
+ *
+ * ADR 0003 exists because a number was once trusted without a control. Attributing a
+ * frame-time change to the context layer means measuring the same query with it off,
+ * on the same machine, in the same run order - not against a remembered figure.
+ */
+const contextCount = await page.evaluate(() => {
+  const match = document.body.innerText.match(/([0-9,]+) excluded/);
   return match ? Number(match[1].replace(/,/g, '')) : 0;
 });
+if (process.env.PERF_CONTEXT === 'off') {
+  const toggle = page.getByRole('button', { name: 'Context', exact: true });
+  if (await toggle.count()) await toggle.click().catch(() => {});
+  await page.waitForTimeout(1500);
+}
 
 // Sample frame intervals while the time cursor is animating, which is the worst case:
 // every frame re-evaluates the colour accessor for every visible point.
@@ -102,6 +163,13 @@ const mean = frames.reduce((a, b) => a + b, 0) / frames.length;
 
 console.log(`\nquery         ${QUERY}`);
 console.log(`points        ${rendered.toLocaleString()}`);
+console.log(
+  `context       ${
+    process.env.PERF_CONTEXT === 'off'
+      ? `OFF (control) - ${contextCount.toLocaleString()} points withheld`
+      : `ON - ${contextCount.toLocaleString()} points`
+  }`,
+);
 console.log(`frames        ${frames.length} sampled during playback`);
 console.log(`median        ${median.toFixed(1)} ms  (${(1000 / median).toFixed(1)} fps)`);
 console.log(`mean          ${mean.toFixed(1)} ms  (${(1000 / mean).toFixed(1)} fps)`);

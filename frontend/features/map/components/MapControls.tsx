@@ -25,6 +25,7 @@ export function MapControls() {
     setDepthExaggeration,
     showTrajectories,
     showGraticule,
+    showContext,
     basemap,
     setBasemap,
     toggle,
@@ -103,6 +104,9 @@ export function MapControls() {
           ))}
         </div>
 
+        {/* Context is the non-matching measurements drawn dim beneath the results.
+            Default on - see the store, and ADR 0006 for why it is not opt-in. */}
+        <Toggle label="Context" on={showContext} onClick={() => toggle('showContext')} />
         <Toggle label="Tracks" on={showTrajectories} onClick={() => toggle('showTrajectories')} />
         <Toggle label="Grid" on={showGraticule} onClick={() => toggle('showGraticule')} />
       </div>

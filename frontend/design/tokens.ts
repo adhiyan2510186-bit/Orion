@@ -176,6 +176,39 @@ export const canvasAtmosphere = {
   additiveBlending: true,
 } as const;
 
+/**
+ * The context cloud. DESIGN.md "Canvas".
+ *
+ * Measurements that did NOT match the query, drawn beneath the ones that did. The
+ * argument is honesty before atmosphere: showing only survivors renders a filter as an
+ * absence, and a viewer cannot tell a query that excluded 59,000 measurements from a
+ * dataset that only ever held 411. Drawing the rejected set makes the filter legible AS
+ * a filter.
+ *
+ * Every value here exists to keep context subordinate to data:
+ *
+ *  - It is drawn in the NEUTRAL ramp, never through a colormap. A context point carries
+ *    no encoded value, and giving it one would put thousands of colormap samples on the
+ *    canvas that mean nothing - the exact mistake DESIGN.md argues against for the
+ *    basemap. Graphite is hue-separated from every scientific colormap, so a coloured
+ *    pixel still always means a measurement that matched.
+ *  - Alpha and radius sit below the matched cloud's (210 alpha, 2.1 px) by enough that
+ *    the two never compete. If context ever reads as foreground, lower these - do not
+ *    raise the matched cloud, which is already at the top of its range.
+ */
+export const contextCloud = {
+  /**
+   * Well under the matched cloud's 210, but this floor is measured rather than chosen.
+   * At 52 the cloud was invisible: Graphite at 20% over a #090A0C basemap lands about
+   * 20/255 above ground, and ScatterplotLayer blends normally rather than additively,
+   * so overlapping points converge on that value instead of accumulating past it.
+   */
+  alpha: 90,
+  /** Smaller than a matched point at every zoom. */
+  radiusPx: 1.3,
+  radiusMinPx: 0.8,
+} as const;
+
 /** 4px base. Dense professional UI; 8px would waste rows in the readout tables. */
 export const spacing = {
   xs: 4,
@@ -259,7 +292,46 @@ export const motion = {
   staggerMaxItems: 6,
   /** Fast departure, long settle, no overshoot. Nothing in this system bounces. */
   easing: 'cubic-bezier(0.2, 0, 0, 1)',
+  /** The same curve's control points, for consumers that cannot parse the CSS string. */
+  easingPoints: [0.2, 0, 0, 1],
 } as const;
+
+/**
+ * `motion.easing` as a JavaScript function.
+ *
+ * Same values, different encoding - never a second source, exactly as `rgb` mirrors
+ * `colors`. CSS transitions take the bezier string; a deck.gl camera transition takes a
+ * `(t: number) => number`, and there is no way to hand it the string. Writing an
+ * eyeballed easeInOutCubic at the call site instead would mean the camera and the
+ * chrome moved on visibly different curves while both claimed to use "the" easing.
+ *
+ * Newton-Raphson on the x-polynomial, then evaluate y. Six iterations converges well
+ * inside a pixel for any curve this system defines, and the loop runs once per frame
+ * of a transition that lasts at most 520ms.
+ */
+export function ease(t: number): number {
+  const [x1, y1, x2, y2] = motion.easingPoints;
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+
+  const curve = (a: number, b: number, u: number) => {
+    const v = 1 - u;
+    return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;
+  };
+  const slope = (a: number, b: number, u: number) => {
+    const v = 1 - u;
+    return 3 * v * v * (a - 0) + 6 * v * u * (b - a) + 3 * u * u * (1 - b);
+  };
+
+  let u = t;
+  for (let i = 0; i < 6; i += 1) {
+    const dx = curve(x1, x2, u) - t;
+    const d = slope(x1, x2, u);
+    if (Math.abs(d) < 1e-6) break;
+    u -= dx / d;
+  }
+  return curve(y1, y2, Math.max(0, Math.min(1, u)));
+}
 
 /**
  * Reduced motion is a real state, not a checkbox.

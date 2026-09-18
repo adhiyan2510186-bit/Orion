@@ -48,7 +48,17 @@ await page.goto('http://localhost:3000', { waitUntil: 'networkidle', timeout: 90
 // The app auto-runs the first example query on mount, so a shot taken before that
 // lands would document an empty state that no viewer will ever see.
 await page.waitForSelector('text=/measurements from/', { timeout: 60_000 }).catch(() => {});
-// Let the point cloud finish painting and any entry motion settle.
+
+// Then wait for the CONTEXT cloud, which is a second, much larger request - roughly
+// 20 MB of points, a few seconds even on localhost. It is deliberately not awaited by
+// the app (the answer must not wait on scenery), so a shot taken on the matched result
+// alone documents a frame that is two-thirds empty and half a second from changing.
+// The readout only renders once contextPoints lands, which makes it a real signal.
+await page
+  .waitForSelector('text=/excluded, shown dim/', { timeout: 60_000 })
+  .catch(() => console.log('note: context cloud did not arrive - shot shows matches only'));
+
+// Let the point cloud finish painting and the arrival camera flight settle.
 await page.waitForTimeout(2500);
 
 const clip =

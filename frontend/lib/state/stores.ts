@@ -12,11 +12,21 @@ import type { ArgoFloatPoint, QueryResponse } from '@/types/argo';
 interface QueryState {
   text: string;
   response: QueryResponse | null;
+  /**
+   * Measurements in the same region and period that did NOT match the query.
+   *
+   * Fetched by a second, relaxed query - see useArgoQuery and ADR 0006. Kept beside
+   * the response rather than inside it because it is NOT part of the answer: nothing
+   * in the summary, the inspector or the anomaly panel counts these, and a future
+   * reader must not mistake them for results.
+   */
+  contextPoints: ArgoFloatPoint[];
   isLoading: boolean;
   error: string | null;
   history: string[];
   setText: (text: string) => void;
   setResponse: (response: QueryResponse | null) => void;
+  setContextPoints: (points: ArgoFloatPoint[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   pushHistory: (text: string) => void;
@@ -25,11 +35,13 @@ interface QueryState {
 export const useQueryStore = create<QueryState>((set) => ({
   text: '',
   response: null,
+  contextPoints: [],
   isLoading: false,
   error: null,
   history: [],
   setText: (text) => set({ text }),
   setResponse: (response) => set({ response }),
+  setContextPoints: (contextPoints) => set({ contextPoints }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   pushHistory: (text) =>
@@ -101,18 +113,40 @@ interface ViewState {
   depthExaggeration: number;
   showTrajectories: boolean;
   showGraticule: boolean;
+  /** The non-matching measurements drawn beneath the results. Defaults ON. */
+  showContext: boolean;
   basemap: BasemapMode;
   setColorBy: (key: string) => void;
   setDepthExaggeration: (value: number) => void;
   setBasemap: (mode: BasemapMode) => void;
-  toggle: (key: 'showTrajectories' | 'showGraticule') => void;
+  toggle: (key: 'showTrajectories' | 'showGraticule' | 'showContext') => void;
 }
 
 export const useViewStore = create<ViewState>((set) => ({
   colorBy: 'temperature_c',
-  depthExaggeration: 1,
+  /**
+   * x6, not x1, and this is a measured default rather than a taste.
+   *
+   * depthToZ scales metres into degrees at 0.35 deg/km, so at x1 the context cloud's
+   * 300 m of water column is 0.105 degrees - about THREE pixels at the arrival zoom.
+   * Every one of a profile's ~350 context points lands in that sliver, which is why
+   * 41,492 of them measured a lit-pixel delta in the hundreds and the layer looked like
+   * it was not rendering at all.
+   *
+   * At x6 the same column is ~18 px and reads as a column. The matched cloud is
+   * unaffected: those points sit at 3-10 m, which is under a thousandth of a degree at
+   * any exaggeration in range, so this changes how the WATER COLUMN reads and nothing
+   * about where the results are.
+   */
+  depthExaggeration: 6,
   showTrajectories: true,
   showGraticule: true,
+  /**
+   * On by default. A filter shown as an absence is not shown at all - the whole reason
+   * the layer exists is that the first frame should say what was excluded, and a
+   * default-off control says it only to someone who already knew to look.
+   */
+  showContext: true,
   /** Vector ocean by default: it carries the geography without competing for chroma. */
   basemap: 'ocean',
   setColorBy: (colorBy) => set({ colorBy }),

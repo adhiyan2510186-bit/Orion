@@ -618,3 +618,102 @@ They have nothing to act on yet.
 The fix belongs to P3 and is a camera problem before it is a rendering one: fit the arrival
 flight to the result bounds so 411 points fill the frame, then let additive blending give the
 cluster luminance for the grain and vignette to sit against.
+
+---
+
+## 7. P1.5 as built — framing and context
+
+Pulled forward from P3 so the parse ribbon (P2) can be judged against a frame that is not
+two-thirds empty. The rest of P3 — additive blending, staggered point entry, scripted camera —
+is untouched, and `viewState` deliberately stays local to `MapCanvas` (§3.7 hoisting is still
+P3's job).
+
+### 7.1 Arrival camera fits the result bounds
+
+`features/map/hooks/useFitCamera.ts`. Fires on first load and on every new query, keyed on
+response identity so orbiting the camera and then scrubbing time does not yank it back.
+
+OrbitView's world coordinates are degrees (ADR 0004) and its scale is 2^zoom pixels per world
+unit, so the fit is `zoom = log2(pixels / degrees)` with no projection maths. On the demo query
+that moves the camera from the fixed `zoom 3.4` over the whole east Pacific to `zoom 4.80`
+centred on `[-149.49, 0.19]`.
+
+Longitude bounds are computed by **largest angular gap**, not `min`/`max`. These floats span
+−179.5…+179.7, and a naive min/max returns the full 360° and frames the planet to contain a
+cluster 20° wide. Where the tight range would cross ±180 it falls back to the naive span,
+because the basemap is drawn once over [−180, 180] and does not repeat.
+
+Two things cost time and are worth not rediscovering:
+
+- **`FlyToInterpolator` is MapView-only.** It interpolates longitude/latitude/zoom/pitch and
+  throws `latitude is required for transition` against an `OrbitViewState`. Use
+  `LinearInterpolator` naming `target`, `zoom`, `rotationX`, `rotationOrbit`.
+- **Transition props must live on the state object, not beside it.** deck.gl emits
+  `onViewStateChange` every frame during a transition; if the state handed back still carries
+  `transitionDuration`, each of those frames starts a *new* transition toward the intermediate
+  value it just reported. That is a fixed point at the starting camera — the view never moves,
+  and nothing errors.
+
+`motion.easing` gained a JavaScript twin, `ease()` in `tokens.ts`, because a CSS bezier string
+cannot be handed to a deck.gl transition. Same values, two encodings, exactly as `rgb` mirrors
+`colors`.
+
+### 7.2 Context cloud
+
+Full reasoning, measurements and the open cost question are in
+`docs/adr/0006-context-cloud.md`. In brief: a registered `context-cloud` layer draws the
+measurements that did not match, dim and neutral, beneath the results, fed by a second relaxed
+query. All four constraints hold — registry not conditionals, token colours, same time-cursor
+filter, toggleable and defaulting on — and the basemap draw order and ADR 0004's `depthCompare`
+fix are untouched (the layer registers after the basemaps and keeps deck.gl's default depth
+state).
+
+**The premise did not fully survive the data, and that is the main finding.** ARGO in this
+region is 12 floats and ~119 profiles, and a profile is ~1,000 levels at one lat/lon — so the
+context renders as vertical combs beneath each track, not as an areal haze. It adds
+**+529 lit pixels** at the default 30-day trail and **+4,284** at a 1-year trail. The empty
+ocean is a fact about ARGO's sampling density; filling it would mean inventing measurements.
+
+### 7.3 Two gates to settle before P2
+
+Both are consequences of this work, both are reported rather than quietly adjusted, and the
+branch is `wip/p15-framing` rather than `main` until they are.
+
+**`npm run verify` is 16–18, and the variance is itself a finding.** Three runs:
+
+```
+FAIL  basemap Ocean paints       7,901 / 7,940 / 7,940 lit  (> 20000)   deterministic
+ ??   basemap Satellite paints   4,315 / 433,542 / 4,328 lit (> 100000)  FLAKY
+PASS  basemap Bare paints        2,946 / 2,690 / 2,946 lit  (> 500)
+```
+
+Two different problems, and they need different answers.
+
+*Ocean fails deterministically, and it is the camera.* Nothing about the basemap changed. The
+floors were calibrated against the old fixed camera, which framed most of North America; the
+fitted camera frames a patch of open equatorial ocean with no land in it. The check's intent —
+"selecting this style actually draws geography" — is still met, but its absolute threshold now
+measures where the camera points. §3.5 makes changing a check a deliberate conversation, so it
+has not been changed.
+
+*Satellite is intermittent, and that is a regression this work caused.* It passes at 433,542
+when the 2.5 MB Blue Marble raster has decoded and fails at ~4,300 when it has not. The context
+cloud's second request is 14–20 MB and now competes with that decode, so a check that used to
+land after the raster sometimes lands before it. Unlike Ocean, this one is a real race rather
+than a stale threshold — it will misreport on any machine under load, not just this framing.
+
+**P6's frame-rate budget regresses while context is on**: 59.2 fps control → 30.2 fps, an
+~16 ms/frame cost from overdraw. Options are listed at the end of ADR 0006; the layer defaults
+on, so this is live.
+
+### 7.4 Also changed
+
+- `scripts/measure-perf.mjs` gained `PERF_CONTEXT=off` as a control, in the shape
+  `PERF_BASEMAP` established, and now waits for the point count to settle instead of a fixed
+  14 s. The old fixed wait reported `points 0` against a 21 MB response while still printing a
+  good frame rate — a stopwatch problem that looked like a budget failure.
+- The perf harness reads `data-point-count` rather than scraping `innerText` for
+  "points rendered". P1's uppercase label had silently broken that regex; a styling change must
+  not be able to break a measurement.
+- `scripts/shoot.mjs` waits for the context cloud before shooting, since it lands seconds after
+  the answer does.

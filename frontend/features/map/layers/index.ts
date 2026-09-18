@@ -34,6 +34,14 @@ import './basemapSatellite';
 import './oceanLabels';
 
 /**
+ * The context cloud, imported after the basemaps and before this module registers
+ * `point-cloud-3d` below. That places it third in draw order: geography, then rejected
+ * measurements, then matched ones on top. Moving this import below the factories in
+ * this file would draw context OVER the results and invert the whole point of it.
+ */
+import './contextCloud';
+
+/**
  * Time filtering runs on the GPU. This is measured, not assumed.
  *
  * The obvious implementation - filter the points array by the cursor each frame and

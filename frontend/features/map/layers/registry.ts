@@ -23,6 +23,11 @@ import type {
 
 export interface LayerContext {
   points: ArgoFloatPoint[];
+  /**
+   * Measurements in the same region and period that did NOT match the query. Scenery,
+   * never results - nothing may count, summarise or select from these. See ADR 0006.
+   */
+  contextPoints: ArgoFloatPoint[];
   trajectories: FloatTrajectory[];
   /** Epoch ms. Points newer than this are hidden. */
   timeCursor: number;
@@ -36,6 +41,7 @@ export interface LayerContext {
   onHover: (point: ArgoFloatPoint | null) => void;
   showTrajectories: boolean;
   showGraticule: boolean;
+  showContext: boolean;
   /** Which basemap style is active. Basemap factories return null for the others. */
   basemap: BasemapMode;
 }

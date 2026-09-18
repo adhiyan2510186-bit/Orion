@@ -6,10 +6,11 @@ anything. If you are a fresh session: read this, then `CLAUDE.md`, then `IMPLEME
 
 **Status:** P1–P7 + P9 complete. Full vertical slice runs end to end on real data.
 Now in a **frontend-only UI polish pass** for a recorded demo — plan and phase list in
-`UI_POLISH_PLAN.md`. **P0 and P1 done**; **P2 next** (the parse ribbon — word-level
-highlighting via a frontend phrase gazetteer, §4.1 decision 4, with the three containment
-rules in §5.3).
-**Last updated:** 2026-09-18, after UI polish P1 (see `UI_POLISH_PLAN.md` §6)
+`UI_POLISH_PLAN.md`. **P0, P1 and P1.5 done**, but P1.5 is on `wip/p15-framing`, NOT on
+`main`, because it leaves two gates open — see "Open questions" below. **P2 next** (the
+parse ribbon — word-level highlighting via a frontend phrase gazetteer, §4.1 decision 4,
+with the three containment rules in §5.3), once those two are settled.
+**Last updated:** 2026-09-18, after UI polish P1.5 (see `UI_POLISH_PLAN.md` §7)
 
 **Verified ready:** backend venv installed · 12 real ARGO floats cached locally · demo query
 confirmed to return real results · `backend/data/{raw,.venv}` confirmed gitignored ·
@@ -38,6 +39,7 @@ Do not reopen these. They were decided with the user and are settled.
 | Design system | **Chart Room** | `DESIGN.md` is authoritative and lints clean. `frontend/design/tokens.ts` derives from it **by hand** — that step is still manual, and there is no `tailwind.config.ts` (this is Tailwind v4). Everything downstream of `tokens.ts` is **generated**: `scripts/build-theme.mjs` writes `app/theme.generated.css` (the `@theme` block, the type scale, the spacing base and the semantic utilities). The palette is no longer duplicated by hand — change it in `DESIGN.md` and `tokens.ts`, then `npm run theme`. |
 | Theme direction | **Austere instrument, cinematic canvas** | Chrome stays flat, warm, matte; glow/grain/vignette/additive belong inside the WebGL viewport only. Glass is permitted at the boundary alone. The no-blue-chrome rule survives. |
 | Motion | **Explanatory only** | Replaced the "don't animate the interface" rule. Motion must explain a causal relationship; decoration does not ship. `transform`/`opacity` only. See ADR 0005. |
+| Context cloud | **Draw what did not match** | Showing only survivors renders a filter as an absence. A registered `context-cloud` layer draws the rejected measurements dim and neutral beneath the results, from a second relaxed query. Default on. See ADR 0006 — including a measured frame cost that is still open. |
 
 ## Environment (verified 2026-09-09)
 
@@ -173,13 +175,13 @@ passes** — never mark one done on assumption.
 
 **Next actions, highest value first:**
 
+0. **Settle the two open gates from P1.5** (see "Open questions"). `wip/p15-framing`
+   cannot merge to `main` until then.
 1. **UI polish P2 — the parse ribbon.** `UI_POLISH_PLAN.md` §2 P2 and §5.3. Needs
    `features/search/index.ts` (barrel) and `features/search/lib/attributeSpec.ts`.
-2. **UI polish P3 — camera choreography and additive blending.** This is the one that
-   fixes the frame: the demo query returns 411 points into a viewport framed for the
-   whole east Pacific, so two-thirds of the canvas is empty and P1's grain and vignette
-   have nothing to act on. See `UI_POLISH_PLAN.md` §6. Requires hoisting `viewState` out
-   of `MapCanvas` into the view store (§3.7).
+2. **UI polish P3 — the rest of it.** The arrival camera was pulled forward into P1.5;
+   what remains is additive blending, staggered point entry and the scripted demo
+   camera, plus hoisting `viewState` out of `MapCanvas` into the view store (§3.7).
 3. Optional depth: aggregation modes (`by_float`, `by_time_bucket`) are in `QuerySpec`
    but the engine ignores them; `list_floats` ignores its spec argument.
 4. Optional: a light theme, deliberately skipped this pass.
@@ -203,4 +205,37 @@ the work it describes. Conventional commit messages, scopes per `CLAUDE.md`.
 
 ## Open questions for the user
 
-None blocking. Recorded here if any arise mid-build.
+**Two, both blocking the `wip/p15-framing` → `main` merge.** Both are consequences of
+UI polish P1.5, both are reported rather than quietly adjusted.
+
+**1. `npm run verify` is 16–18, two basemap floors involved, for two different
+reasons.** Measured over three runs:
+
+```
+FAIL  basemap Ocean      7,901 / 7,940 / 7,940 lit  (> 20000)    deterministic
+ ??   basemap Satellite  4,315 / 433,542 / 4,328    (> 100000)   FLAKY
+PASS  basemap Bare       2,946 / 2,690 / 2,946      (> 500)
+```
+
+*Ocean* — stale threshold. Nothing about the basemap changed; P1.5's arrival camera
+fits the result bounds, so the frame is open equatorial ocean instead of most of North
+America, and the floor was calibrated against the old fixed camera. `UI_POLISH_PLAN.md`
+§3.5 makes changing a check a deliberate conversation, so it has not been touched.
+
+*Satellite* — a real race this work introduced. It passes at 433,542 once the 2.5 MB
+Blue Marble raster decodes and fails at ~4,300 before that; the context cloud's 14–20 MB
+second request now competes with the decode. This one will misreport on any loaded
+machine, not just at this framing, and should be fixed rather than recalibrated.
+
+**2. The context cloud costs ~16 ms/frame and it defaults on.** Measured on Intel UHD
+620, hardware GPU, same run order, with `PERF_CONTEXT=off` as the control:
+
+```
+context OFF (control)   median 16.9 ms   59.2 fps   MET
+context ON              median 33.1 ms   30.2 fps   MISSED
+```
+
+Overdraw, not vertex count: a profile stacks ~350 translucent points into an ~18 px
+column. Options are listed at the end of `docs/adr/0006-context-cloud.md` — subsample
+depth levels for that layer, default it off, or accept 30 fps and re-measure on the
+capture machine.
